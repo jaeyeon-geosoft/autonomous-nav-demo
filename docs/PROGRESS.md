@@ -8,9 +8,13 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 2번 완료 (CSV 로드/파싱)
-- **마지막으로 건드린 파일**: `src/data/parseCsv.ts`, `src/components/FileLoader.tsx`, `src/App.tsx`
-- **다음 할 일**: SPEC.md 구현 순서 3번 — 재생 엔진(zustand 스토어: 커서/재생상태/배속) + 보간 로직
+- **단계**: 구현 순서 3번 완료 (재생 엔진 + 보간)
+- **마지막으로 건드린 파일**: `src/data/interpolate.ts`, `src/playback/playbackStore.ts`,
+  `src/playback/usePlaybackClock.ts`, `src/App.tsx`
+- **다음 할 일**: SPEC.md 구현 순서 4번 — 지도 컴포넌트
+  (Leaflet 베이스맵 + seamark 오버레이, 마커 회전/이동, 항적 polyline, fitBounds)
+  화면이 지도 중심으로 바뀌므로 임시 App.tsx를 실제 레이아웃으로 교체하는 시점.
+  SPEC의 `public/예시 디자인 *.png` + frontend-design skill 적용할 것
 - **미해결/대기**:
     - 실제 데이터 형식 미확정 (분석가가 나중에 CSV 제공 예정) → 확정되면
       CLAUDE.md 데이터 모델 + SPEC.md 컬럼 매핑 갱신
@@ -24,6 +28,25 @@
 ---
 
 ## 로그
+
+### 2026-07-21 — 구현 순서 3번
+- `src/data/interpolate.ts`: `interpolateAt()` + `lerpAngle()` + `bearing()`
+    - 각도는 0도 경계를 최단 경로로 넘김(359°→1°은 2°만 이동). 단순 선형 보간이면
+      반대로 358°를 도는 버그가 생김
+    - 마커 방향은 hdg → cog → 진행 방향 순으로 폴백(SPEC 그대로)
+    - 구간 밖 시각은 양 끝으로 클램프, 같은 timestamp 중복도 방어
+- `src/playback/playbackStore.ts`: zustand 스토어(points/cursor/playing/speed)
+    - 커서는 항상 데이터의 실제 유닉스 ms. 배속은 경과 시간에 곱해서 전진
+    - 끝에 닿으면 자동 정지, 끝에서 재생하면 처음부터
+- `src/playback/usePlaybackClock.ts`: rAF로 실제 경과 시간만 스토어에 전달.
+  시간 진행은 여기서만 일으키고 스토어는 계산만 함(테스트 가능하게)
+- `src/App.tsx`: 3번 확인용으로 재생/배속/스크러버 + 현재 상태 표시 추가
+- 검증: Node에서 38개 케이스 전부 통과(보간, 각도 경계, 방위각, 클램프, 폴백,
+  빈 배열/단일 포인트/timestamp 중복, 스토어 상태 전이).
+  `tsc -b` / `eslint src` / `npm run build` 통과
+- **주의**: `bearing()`은 대권항로 초기 방위각이라 위도 35°에서 정동쪽이 89.7°로 나옴.
+  처음엔 이걸 버그로 보고 테스트를 짰다가, 공식을 직접 계산해 정상임을 확인함.
+  적도에서는 정확히 90°. 코드에 주석으로 근거를 남겨둠
 
 ### 2026-07-21 — 구현 순서 2번
 - `src/data/parseCsv.ts`: `parseCsv(File | string)` + `summarizeParse()`
