@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import type { TrackPoint } from '../data/types';
 import { interpolateAt, type TrackState } from '../data/interpolate';
@@ -70,6 +71,16 @@ export const usePlaybackStore = create<PlaybackStore>((set, get) => ({
 export const selectStartTime = (state: PlaybackStore) => firstTime(state.points);
 export const selectEndTime = (state: PlaybackStore) => lastTime(state.points);
 
-/** 현재 커서 시각의 선박 상태. 화면은 이걸 구독한다. */
-export const selectCurrent = (state: PlaybackStore): TrackState | null =>
-  interpolateAt(state.points, state.cursor);
+/**
+ * 현재 커서 시각의 선박 상태. 화면은 이걸 구독한다.
+ *
+ * 셀렉터(`usePlaybackStore(s => interpolateAt(...))`)로 만들면 안 된다.
+ * interpolateAt은 매번 새 객체를 반환하는데 zustand는 스냅샷을 Object.is로
+ * 비교하므로, 렌더마다 값이 바뀐 것으로 판단해 무한 렌더 루프에 빠진다.
+ * 원시값만 구독하고 파생 객체는 useMemo로 만든다.
+ */
+export function useCurrentState(): TrackState | null {
+  const points = usePlaybackStore((state) => state.points);
+  const cursor = usePlaybackStore((state) => state.cursor);
+  return useMemo(() => interpolateAt(points, cursor), [points, cursor]);
+}

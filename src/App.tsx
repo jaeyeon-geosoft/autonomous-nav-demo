@@ -4,7 +4,7 @@ import { parseCsv, summarizeParse, type CsvParseResult } from './data/parseCsv';
 import { generateMockTrack } from './data/mockTrack';
 import {
   usePlaybackStore,
-  selectCurrent,
+  useCurrentState,
   selectStartTime,
   selectEndTime,
   SPEEDS,
@@ -31,7 +31,7 @@ function App() {
   const setSpeed = usePlaybackStore((state) => state.setSpeed);
   const seek = usePlaybackStore((state) => state.seek);
   const reset = usePlaybackStore((state) => state.reset);
-  const current = usePlaybackStore(selectCurrent);
+  const current = useCurrentState();
   const startTime = usePlaybackStore(selectStartTime);
   const endTime = usePlaybackStore(selectEndTime);
 
