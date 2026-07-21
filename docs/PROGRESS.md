@@ -12,9 +12,6 @@
 - **마지막으로 건드린 파일**: `src/data/parseCsv.ts`, `src/components/FileLoader.tsx`, `src/App.tsx`
 - **다음 할 일**: SPEC.md 구현 순서 3번 — 재생 엔진(zustand 스토어: 커서/재생상태/배속) + 보간 로직
 - **미해결/대기**:
-    - **브라우저 확인 미완료**: 2번 단계 UI를 실제 브라우저에서 클릭해본 적 없음.
-      파싱 로직은 Node에서 전부 검증했으나 드래그앤드롭/렌더링은 눈으로 봐야 함.
-      확인용 샘플 CSV는 scratchpad의 `sample-track.csv`
     - 실제 데이터 형식 미확정 (분석가가 나중에 CSV 제공 예정) → 확정되면
       CLAUDE.md 데이터 모델 + SPEC.md 컬럼 매핑 갱신
     - 디자인 방향: 우선 알아서 깔끔하게, 이후 다듬기.
@@ -42,6 +39,11 @@
 - 검증: Node에서 5개 케이스 통과 — 헤더 표기 혼재, 시간 역순 정렬, 필수 컬럼 누락,
   깨진 행/빈 값 제외, BOM+CRLF(엑셀 저장본), File 객체 경로.
   `tsc -b` / `eslint src` / `npm run build` 통과
+- 브라우저에서 mock 버튼 + `samples/sample-track.csv` 드래그앤드롭 확인 완료
+  (매핑 5개, 정렬 복원, hdg 370→10, 빈 timestamp 행 제외까지 화면에서 확인)
+- `samples/sample-track.csv` 추가 — 헤더 표기 혼재/역순/각도 초과/빈 값을 한 파일에
+  모아둔 회귀 확인용. 실제 데이터 오기 전까지 이걸로 확인
+- mock 출항 가속을 9분 → 3분으로 단축(`RAMP_UP_SEC`). 초반이 정지 화면처럼 보여서
 
 ### 2026-07-21 — 스택 의존성 설치 + 문서 경로 정리
 - 설치: `zustand@5`, `leaflet@1.9`, `papaparse@5`

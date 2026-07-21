@@ -3,8 +3,8 @@ import { normalizeAngle } from './mapping';
 
 const KNOTS_TO_MS = 0.514444;
 const METERS_PER_DEG_LAT = 111320;
-/** 출항 가속에 걸리는 시간 */
-const RAMP_UP_SEC = 540;
+/** 출항 가속에 걸리는 시간. 너무 길면 재생 초반이 정지 화면처럼 보인다. */
+const RAMP_UP_SEC = 180;
 /** S자 선회 한 주기 */
 const TURN_PERIOD_SEC = 2400;
 
