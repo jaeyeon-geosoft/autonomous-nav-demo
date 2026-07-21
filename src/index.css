@@ -1,7 +1,72 @@
 @import 'tailwindcss';
 
+/* 야간 전자해도에서 가져온 토큰. 마젠타는 해도에서 주의 표시에 쓰는 관례색이라
+   이상 구간 전용으로 남겨두고, 다른 곳에는 쓰지 않는다. */
+@theme {
+  --color-abyss: #071119;
+  --color-deep: #0b1825;
+  --color-panel: #102030;
+  --color-hairline: #1b3348;
+  --color-track: #35e0c4;
+  --color-alert: #ff3d9a;
+  --color-ink: #dbe7f0;
+  --color-dim: #6d8699;
+
+  --font-sans: 'IBM Plex Sans KR', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
 html,
 body,
 #root {
   height: 100%;
+}
+
+body {
+  background: var(--color-abyss);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Leaflet 기본 크롬을 해도 톤에 맞춘다. */
+.leaflet-container {
+  background: var(--color-abyss);
+  font-family: var(--font-sans);
+}
+
+.leaflet-control-zoom a {
+  background: var(--color-panel);
+  color: var(--color-ink);
+  border-color: var(--color-hairline);
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--color-hairline);
+}
+
+.leaflet-control-attribution {
+  background: rgb(7 17 25 / 0.8) !important;
+  color: var(--color-dim) !important;
+  font-size: 10px;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-dim) !important;
+}
+
+/* 선박 마커. 회전은 프레임마다 직접 갱신하므로 transition을 걸지 않는다. */
+.vessel-rot {
+  width: 26px;
+  height: 26px;
+  transform-origin: center;
+  filter: drop-shadow(0 0 6px rgb(53 224 196 / 0.55));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

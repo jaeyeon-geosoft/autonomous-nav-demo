@@ -3,61 +3,83 @@ import { useRef, useState } from 'react';
 interface FileLoaderProps {
   onFile: (file: File) => void;
   onMock: () => void;
+  /** 헤더에 놓이는 축소형. 데이터를 이미 불러온 뒤에 쓴다. */
+  compact?: boolean;
 }
 
 /** CSV 파일을 드래그앤드롭 또는 파일 선택으로 받는다. */
-export function FileLoader({ onFile, onMock }: FileLoaderProps) {
+export function FileLoader({ onFile, onMock, compact = false }: FileLoaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    setDragging(false);
-    const file = event.dataTransfer.files[0];
-    if (file) onFile(file);
-  };
+  const picker = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept=".csv,text/csv"
+      className="hidden"
+      onChange={(event) => {
+        const file = event.target.files?.[0];
+        if (file) onFile(file);
+        // 같은 파일을 다시 선택해도 change가 발생하도록 초기화
+        event.target.value = '';
+      }}
+    />
+  );
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="rounded border border-hairline px-3 py-1.5 text-xs text-dim transition-colors hover:border-dim hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-track"
+        >
+          다른 파일
+        </button>
+        {picker}
+      </div>
+    );
+  }
 
   return (
     <div
-      onDrop={handleDrop}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        const file = event.dataTransfer.files[0];
+        if (file) onFile(file);
+      }}
       onDragOver={(event) => {
         event.preventDefault();
         setDragging(true);
       }}
       onDragLeave={() => setDragging(false)}
-      className={`rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-        dragging ? 'border-sky-400 bg-sky-950/40' : 'border-slate-700 bg-slate-900/40'
+      className={`rounded-lg border border-dashed p-10 text-center transition-colors ${
+        dragging ? 'border-track bg-track/5' : 'border-hairline bg-deep/80'
       }`}
     >
-      <p className="text-slate-300">항적 CSV 파일을 여기에 놓거나</p>
-      <div className="mt-3 flex justify-center gap-2">
+      <p className="text-sm text-ink">항적 CSV 파일을 여기에 놓으세요</p>
+      <p className="mt-1 text-xs text-dim">
+        timestamp · 위도 · 경도 컬럼이 있으면 헤더 이름이 달라도 인식합니다
+      </p>
+      <div className="mt-5 flex justify-center gap-2">
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="rounded bg-sky-600 px-3 py-1.5 text-sm text-white hover:bg-sky-500"
+          className="rounded bg-track px-4 py-2 text-sm font-medium text-abyss transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-track"
         >
           파일 선택
         </button>
         <button
           type="button"
           onClick={onMock}
-          className="rounded bg-slate-700 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-600"
+          className="rounded border border-hairline px-4 py-2 text-sm text-dim transition-colors hover:border-dim hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-track"
         >
-          mock 데이터로 확인
+          예시 항적으로 둘러보기
         </button>
       </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".csv,text/csv"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) onFile(file);
-          // 같은 파일을 다시 선택해도 change가 발생하도록 초기화
-          event.target.value = '';
-        }}
-      />
+      {picker}
     </div>
   );
 }

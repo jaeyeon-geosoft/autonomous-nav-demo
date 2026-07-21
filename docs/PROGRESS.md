@@ -8,13 +8,12 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 3번 완료 (재생 엔진 + 보간)
-- **마지막으로 건드린 파일**: `src/data/interpolate.ts`, `src/playback/playbackStore.ts`,
-  `src/playback/usePlaybackClock.ts`, `src/App.tsx`
-- **다음 할 일**: SPEC.md 구현 순서 4번 — 지도 컴포넌트
-  (Leaflet 베이스맵 + seamark 오버레이, 마커 회전/이동, 항적 polyline, fitBounds)
-  화면이 지도 중심으로 바뀌므로 임시 App.tsx를 실제 레이아웃으로 교체하는 시점.
-  SPEC의 `public/예시 디자인 *.png` + frontend-design skill 적용할 것
+- **단계**: 구현 순서 4번 완료 (지도 + 실제 레이아웃). 5·6번도 대부분 함께 들어감
+- **마지막으로 건드린 파일**: `src/components/MapView.tsx`, `src/components/StatusPanel.tsx`,
+  `src/components/TransportBar.tsx`, `src/App.tsx`, `src/index.css`
+- **다음 할 일**: SPEC.md 구현 순서 7번 — 데이터 품질 검증 + 이슈 목록/하이라이트
+  (5번 재생 컨트롤, 6번 정보 패널은 4번 레이아웃 짜면서 실제 동작까지 완료.
+  5번에서 남은 건 스크러버를 속력 프로파일 리본으로 바꾸는 것 하나)
 - **미해결/대기**:
     - 실제 데이터 형식 미확정 (분석가가 나중에 CSV 제공 예정) → 확정되면
       CLAUDE.md 데이터 모델 + SPEC.md 컬럼 매핑 갱신
@@ -28,6 +27,29 @@
 ---
 
 ## 로그
+
+### 2026-07-21 — 구현 순서 4번 (+ 5·6번 대부분)
+- 디자인 방향 확정. 레퍼런스 2장은 *운항 모니터링*용인데 이 도구는 *데이터 검증*용이라,
+  시각 언어만 가져오고 정보 위계는 "정상은 조용하게, 이상은 튀게"로 잡음
+    - 팔레트: 야간 전자해도 톤. 항적 청록(`#35e0c4`), **이상 구간 마젠타(`#ff3d9a`)**.
+      마젠타는 해도에서 주의 표시에 쓰는 관례색이라 이상 구간 전용으로 예약. 다른 데 쓰지 말 것
+    - 타이포: IBM Plex Sans KR + IBM Plex Mono(수치 전용). 한글 + 계기판 성격 둘 다 필요해서
+    - 토큰은 `src/index.css`의 `@theme`에 정의(Tailwind v4 방식)
+- `src/components/MapView.tsx`
+    - **결정**: react-leaflet 안 쓰고 raw Leaflet + 스토어 직접 구독.
+      커서가 재생 중 매 프레임 바뀌는데 React 상태로 구독하면 프레임마다 리렌더가 돔.
+      Leaflet 객체만 명령형으로 갱신하면 리렌더 0회
+    - 베이스맵은 CARTO dark_matter + OpenSeaMap seamark 오버레이.
+      CLAUDE.md에 "실선박 연동 시 KHOA 전자해도로 교체" 적혀 있으니 잠정 선택
+    - 마커 회전은 divIcon 안의 svg에 CSS transform. 전체 항적 토글, fitBounds 포함
+    - flex 레이아웃에서 컨테이너 크기가 늦게 정해져 타일이 어긋나는 문제 →
+      ResizeObserver로 invalidateSize
+- `StatusPanel`(SPEC 6번 항목 전부), `TransportBar`(재생/배속/스크러버/처음으로),
+  `FileLoader`에 compact 변형 추가(헤더용)
+- 시각 표시는 브라우저 로컬 기준(`src/format.ts`). 타임존 없는 CSV는 파싱도 로컬로
+  해석되므로 기준을 맞춤
+- 검증: `tsc -b` / `eslint src` / `npm run build` 통과.
+  빌드 산출물에서 커스텀 색 토큰·반응형 유틸리티가 실제로 생성됐는지 확인
 
 ### 2026-07-21 — 구현 순서 3번
 - `src/data/interpolate.ts`: `interpolateAt()` + `lerpAngle()` + `bearing()`
