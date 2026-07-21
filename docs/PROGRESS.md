@@ -8,24 +8,33 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 1번 완료 (모델 + 매핑 + mock)
-- **마지막으로 건드린 파일**: `src/data/types.ts`, `src/data/mapping.ts`, `src/data/mockTrack.ts`
+- **단계**: 구현 순서 1번 완료 (모델 + 매핑 + mock). 스택 의존성 설치 완료.
+- **마지막으로 건드린 파일**: `vite.config.ts`, `src/index.css`, `CLAUDE.md`
 - **다음 할 일**: SPEC.md 구현 순서 2번 — CSV 로드/파싱 → TrackPoint[] 변환
-  (papaparse 설치 필요. 매핑 레이어는 이미 객체 행 배열을 받게 되어 있어
+  (매핑 레이어는 이미 객체 행 배열을 받게 되어 있어
   papaparse `header: true` 결과를 `mapRowsToTrack`에 그대로 넘기면 된다)
 - **미해결/대기**:
     - 실제 데이터 형식 미확정 (분석가가 나중에 CSV 제공 예정) → 확정되면
       CLAUDE.md 데이터 모델 + SPEC.md 컬럼 매핑 갱신
     - 디자인 방향: 우선 알아서 깔끔하게, 이후 다듬기
-    - 스택 의존성 미설치: zustand, tailwind, leaflet, papaparse
-      (1번 단계는 순수 TS라 불필요했음. 각 단계에서 필요할 때 설치)
-    - 문서 경로 주의: 실제 프로젝트 루트는 중첩된 `autonomous-nav-demo/`,
-      PROGRESS.md는 루트가 아니라 `docs/`에 있음.
-      CLAUDE.md 73번째 줄은 `PROGRESS.md`로만 적혀 있어 헷갈림 → 정리 필요
+    - **git remote 없음** → push 불가. 집/회사 동기화가 아직 안 됨. 주소 확정 후 연결 필요
+    - `src/index.css`에 Vite 스캐폴드 데모 스타일이 남아있음
+      (`#root { width: 1126px; text-align: center }` 등). 4번 지도 단계에서
+      전체 화면 레이아웃과 충돌하므로 그때 걷어낼 것
+    - `src/App.tsx`, `src/App.css`도 스캐폴드 데모 그대로임
 
 ---
 
 ## 로그
+
+### 2026-07-21 — 스택 의존성 설치 + 문서 경로 정리
+- 설치: `zustand@5`, `leaflet@1.9`, `papaparse@5`
+  / dev: `tailwindcss@4`, `@tailwindcss/vite@4`, `@types/leaflet`, `@types/papaparse`
+- Tailwind는 v4라 설정 파일(`tailwind.config.js`) 없이 동작.
+  `vite.config.ts`에 `tailwindcss()` 플러그인 + `src/index.css`에 `@import 'tailwindcss'` 추가.
+  유틸리티가 실제로 생성되는지 빌드 산출물에서 확인함(`.flex`, `.gap-4` 등)
+- CLAUDE.md의 `PROGRESS.md` 경로를 `docs/PROGRESS.md`로 수정하고
+  "파일 위치" 절을 추가(루트가 한 단계 중첩되어 있어 다음 세션이 헷갈리지 않도록)
 
 ### 2026-07-21 — 구현 순서 1번
 - `TrackPoint` 모델 정의 (`src/data/types.ts`)
