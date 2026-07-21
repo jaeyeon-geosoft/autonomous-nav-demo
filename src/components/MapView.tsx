@@ -4,9 +4,13 @@ import 'leaflet/dist/leaflet.css';
 import { usePlaybackStore } from '../playback/playbackStore';
 import { interpolateAt } from '../data/interpolate';
 import type { TrackPoint } from '../data/types';
+import type { Issue } from '../data/quality';
 
 const BASE_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const SEAMARK_TILES = 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png';
+
+/** 이상 구간 전용 마젠타(--color-alert). 해도 관례색이라 다른 용도로 쓰지 않는다. */
+const ALERT_COLOR = '#ff3d9a';
 
 const VESSEL_SVG = `
 <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
@@ -22,8 +26,10 @@ export function MapView() {
   const fullTrackRef = useRef<L.Polyline | null>(null);
   const traveledRef = useRef<L.Polyline | null>(null);
   const vesselRef = useRef<L.Marker | null>(null);
+  const alertRef = useRef<L.LayerGroup | null>(null);
 
   const points = usePlaybackStore((state) => state.points);
+  const issues = usePlaybackStore((state) => state.issues);
   const [showFullTrack, setShowFullTrack] = useState(true);
 
   // 지도는 한 번만 만든다.
@@ -62,6 +68,9 @@ export function MapView() {
       weight: 2.5,
       opacity: 0.95,
     }).addTo(map);
+
+    // 이상 구간 하이라이트. 항적 위, 마커 아래(마커는 별도 pane이라 항상 위).
+    alertRef.current = L.layerGroup().addTo(map);
 
     vesselRef.current = L.marker([35.05, 129.1], {
       icon: L.divIcon({
@@ -103,6 +112,38 @@ export function MapView() {
   useEffect(() => {
     fullTrackRef.current?.setStyle({ opacity: showFullTrack ? 0.28 : 0 });
   }, [showFullTrack]);
+
+  // 이상 구간을 마젠타로 덧그린다. jump는 튄 구간(선), 나머지는 해당 지점(원).
+  useEffect(() => {
+    const layer = alertRef.current;
+    const map = mapRef.current;
+    if (!layer || !map) return;
+
+    layer.clearLayers();
+    const marked = new Set<number>();
+
+    for (const issue of issues as Issue[]) {
+      const point = points[issue.index];
+      if (!point) continue;
+
+      if (issue.kind === 'jump' && points[issue.index - 1]) {
+        L.polyline([toLatLng(points[issue.index - 1]), toLatLng(point)], {
+          color: ALERT_COLOR,
+          weight: 3,
+          opacity: 0.9,
+        }).addTo(layer);
+      }
+
+      if (marked.has(issue.index)) continue;
+      marked.add(issue.index);
+      L.circleMarker(toLatLng(point), {
+        radius: 6,
+        color: ALERT_COLOR,
+        weight: 2,
+        fill: false,
+      }).addTo(layer);
+    }
+  }, [issues, points]);
 
   /*
    * 커서는 재생 중 매 프레임 바뀐다. React 상태로 구독하면 프레임마다

@@ -5,6 +5,7 @@ import {
   SPEEDS,
 } from '../playback/playbackStore';
 import { formatClock, formatDuration } from '../format';
+import { SpeedRibbon } from './SpeedRibbon';
 
 export function TransportBar() {
   const playing = usePlaybackStore((state) => state.playing);
@@ -12,7 +13,6 @@ export function TransportBar() {
   const cursor = usePlaybackStore((state) => state.cursor);
   const togglePlay = usePlaybackStore((state) => state.togglePlay);
   const setSpeed = usePlaybackStore((state) => state.setSpeed);
-  const seek = usePlaybackStore((state) => state.seek);
   const reset = usePlaybackStore((state) => state.reset);
   const startTime = usePlaybackStore(selectStartTime);
   const endTime = usePlaybackStore(selectEndTime);
@@ -56,22 +56,11 @@ export function TransportBar() {
         ))}
       </div>
 
-      <div className="flex min-w-70 flex-1 items-center gap-3">
-        <span className="font-mono text-sm text-ink tabular-nums">{formatClock(cursor)}</span>
-        <input
-          type="range"
-          min={startTime}
-          max={endTime}
-          value={cursor}
-          onChange={(event) => seek(Number(event.target.value))}
-          aria-label="재생 위치"
-          className="h-1 flex-1 cursor-pointer appearance-none rounded bg-hairline accent-track"
-        />
-        <span className="font-mono text-sm text-dim tabular-nums">{formatClock(endTime)}</span>
-      </div>
+      <SpeedRibbon />
 
-      <span className="font-mono text-xs text-dim">
-        {formatDuration(elapsed)} / {formatDuration(span)}
+      <span className="font-mono text-xs text-dim tabular-nums">
+        <span className="text-ink">{formatClock(cursor)}</span> · {formatDuration(elapsed)} /{' '}
+        {formatDuration(span)}
       </span>
     </div>
   );

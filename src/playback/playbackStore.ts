@@ -2,12 +2,15 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import type { TrackPoint } from '../data/types';
 import { interpolateAt, type TrackState } from '../data/interpolate';
+import { findIssues, type Issue } from '../data/quality';
 
 export const SPEEDS = [1, 5, 10] as const;
 export type Speed = (typeof SPEEDS)[number];
 
 interface PlaybackStore {
   points: TrackPoint[];
+  /** 로드 시 스캔한 데이터 품질 이상 목록. points가 바뀔 때만 갱신된다. */
+  issues: Issue[];
   /** 재생 커서. 항상 유닉스 ms(데이터의 실제 시각). */
   cursor: number;
   playing: boolean;
@@ -29,11 +32,13 @@ const lastTime = (points: TrackPoint[]) => points[points.length - 1]?.timestamp 
 
 export const usePlaybackStore = create<PlaybackStore>((set, get) => ({
   points: [],
+  issues: [],
   cursor: 0,
   playing: false,
   speed: 1,
 
-  setPoints: (points) => set({ points, cursor: firstTime(points), playing: false }),
+  setPoints: (points) =>
+    set({ points, issues: findIssues(points), cursor: firstTime(points), playing: false }),
 
   play: () => {
     const { points, cursor } = get();
