@@ -8,22 +8,26 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 1~7번 **전부 완료**. 브라우저에서 동작 확인까지 끝.
-  SPEC의 구현 순서는 여기서 마무리됨.
-- **마지막으로 건드린 파일**: `src/data/quality.ts`(신규), `src/components/IssueList.tsx`(신규),
-  `src/components/SpeedRibbon.tsx`(신규), `src/components/MapView.tsx`,
-  `src/components/TransportBar.tsx`, `src/playback/playbackStore.ts`, `src/App.tsx`,
-  `samples/sample-anomalies.csv`(신규)
+- **단계**: 구현 순서 1~7번 완료 + **KHOA 전자해도 배경 연동 완료**(브랜치 `feat/khoa-haeareum-map`).
+  전자해도 배경 위에 항적/마커/이상표시가 뜨는 것까지 브라우저 확인 끝.
+- **마지막으로 건드린 파일**: `src/components/MapView.tsx`(전자해도 WMS 배경), `.env.local`(키, git 제외),
+  `.env.example`
 
-### 다음 세션에서 할 일
+### 진행 중 (feat/khoa-haeareum-map 브랜치)
 
-SPEC 구현 순서는 완료. 남은 것은 실제 데이터 연동과 마감 성격의 항목들:
+KHOA 개방海 전자해도 배경 연동. **배경은 완료**, 다음은 오버레이:
 
-- **실제 데이터 확정 시**: `src/data/mapping.ts`의 `FIELD_ALIASES`와 CLAUDE.md/SPEC.md 갱신.
-  EUC-KR CSV면 인코딩 대응(아래 미해결 참고)
-- **git remote 연결**: 아직 없음 → push 불가, 집/회사 동기화 안 됨
-- 다듬기(선택): 이슈가 많을 때 목록 가상화, 품질 임계값(`MAX_SPEED_KNOTS` 등) 조정 여지
-- CLAUDE.md "향후 확장"의 KHOA 전자해도 / 센서 패널 / 실시간 어댑터는 데이터 확정 후
+- ✅ 배경: `BASEMAP_ENC573857`(전자해도, 3857 WMS)를 `L.tileLayer.wms`로. 키는 `VITE_KHOA_KEY`(.env.local),
+  없으면 CARTO+OpenSeaMap 폴백. **핵심 gotcha: WMS 파라미터 대문자 필수(`uppercase:true`), ServiceKey는 base URL에.**
+  자세한 요청 스펙은 memory의 khoa-openapi-reference 참고
+- ⬜ 오버레이(다음): 위험구역·항로·암초/침선·조류 등. WMS(`otmsWmsApi.do?...&Layer=`, **대문자 파라미터 주의**)
+  또는 WFS(`otmsWfsApi.do?...&srsName=EPSG:4326`, lat/lon GML). 토글 레이어로.
+- ⬜ 커밋/푸시로 집·회사 동기화
+
+### 그다음(원래 남은 것)
+
+- **실제 데이터 확정 시**: `src/data/mapping.ts`의 `FIELD_ALIASES`와 CLAUDE.md/SPEC.md 갱신. EUC-KR 대응
+- 다듬기(선택): 이슈 목록 가상화, 품질 임계값(`MAX_SPEED_KNOTS` 등) 조정
 
 색: 마젠타(`--color-alert: #ff3d9a`)는 이상 구간 전용으로 예약. 다른 용도로 쓰지 말 것.
 
@@ -48,6 +52,19 @@ SPEC 구현 순서는 완료. 남은 것은 실제 데이터 연동과 마감 �
 ---
 
 ## 로그
+
+### 2026-07-22 — KHOA 전자해도 배경 연동 (feat/khoa-haeareum-map)
+- 방향: 무료·프론트엔드 유지하며 개방海로 최대한(배경 전자해도 + 향후 오버레이). 실시간 AIS·공식 항해용 ENC는 제외
+- CARTO 배경 → **KHOA 개방海 `BASEMAP_ENC573857`(전자해도 3857 WMS)** 로 교체. `MapView.tsx`에서 키 있으면 전자해도,
+  없으면 기존 CARTO+OpenSeaMap 폴백. 키는 `.env.local`의 `VITE_KHOA_KEY`(*.local이라 git 제외), `.env.example` 추가
+- **삽질 로그(다음에 시간 아끼려고 기록)**:
+    - 개방海 소개 문서만 보고 "공식 API는 배경지도 미제공(V-World 위 오버레이)"이라 잘못 결론냄 → 사용자가 '오픈API 신청'
+      페이지 지적해 정정. 실제론 배경지도 OpenAPI 제공(전자해도 3857 포함)
+    - 배경은 OpenLayers 라이브러리 방식이라 타일 URL이 문서에 없음 → 공식 예제(baseMapTest) 받아 로컬 서버로 띄우고
+      **네트워크 캡처**로 실제 타일 요청 확보: `.../BASEMAP_ENC573857/wmsVectordata.do?...GetMap`
+    - 처음 붙였을 때 빈 화면/503 → 원인은 **WMS 파라미터 대소문자**. KHOA는 대문자만 받음(Leaflet 기본 소문자).
+      `uppercase:true` + `ServiceKey`는 base URL에 직접 → 200 PNG 정상. 브라우저에서 전자해도 배경 확인 완료
+- 검증: `tsc -b`/`eslint src`/`npm run build` 통과. 브라우저에서 전자해도 배경 위 항적/마커/이상표시 렌더 확인
 
 ### 2026-07-22 — 구현 순서 7번 (데이터 품질 검증 + 이슈 목록/하이라이트)
 - `src/data/quality.ts`: 순수 함수 `findIssues(points): Issue[]` + `countByKind()`

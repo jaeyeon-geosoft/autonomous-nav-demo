@@ -9,6 +9,13 @@ import type { Issue } from '../data/quality';
 const BASE_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const SEAMARK_TILES = 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png';
 
+/**
+ * 국립해양조사원 개방海 전자해도(해아름) 배경. 표준 EPSG:3857 WMS라 Leaflet에 바로 얹힌다.
+ * 키(VITE_KHOA_KEY)가 있으면 이 배경을, 없으면 CARTO+OpenSeaMap으로 폴백한다.
+ */
+const KHOA_KEY = import.meta.env.VITE_KHOA_KEY as string | undefined;
+const KHOA_ENC_WMS = 'https://www.khoa.go.kr/oceanmap/BASEMAP_ENC573857/wmsVectordata.do';
+
 /** 이상 구간 전용 마젠타(--color-alert). 해도 관례색이라 다른 용도로 쓰지 않는다. */
 const ALERT_COLOR = '#ff3d9a';
 
@@ -44,17 +51,34 @@ export function MapView() {
     });
     mapRef.current = map;
 
-    L.tileLayer(BASE_TILES, {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+    if (KHOA_KEY) {
+      // 전자해도 배경. ENC에 항로표지가 이미 들어 있어 OpenSeaMap 오버레이는 얹지 않는다.
+      // KHOA는 WMS 파라미터를 대문자로 요구한다(SERVICE/REQUEST/BBOX…). Leaflet 기본은 소문자라
+      // uppercase:true로 맞추고, 대문자화하면 안 되는 ServiceKey는 base URL에 직접 붙인다.
+      L.tileLayer
+        .wms(`${KHOA_ENC_WMS}?ServiceKey=${KHOA_KEY}`, {
+          uppercase: true,
+          layers: '',
+          format: 'image/png',
+          transparent: true,
+          version: '1.3.0',
+          maxZoom: 19,
+          attribution: '&copy; 국립해양조사원 개방海(해아름)',
+        })
+        .addTo(map);
+    } else {
+      L.tileLayer(BASE_TILES, {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19,
+      }).addTo(map);
 
-    L.tileLayer(SEAMARK_TILES, {
-      attribution: '&copy; OpenSeaMap',
-      maxZoom: 18,
-      opacity: 0.9,
-    }).addTo(map);
+      L.tileLayer(SEAMARK_TILES, {
+        attribution: '&copy; OpenSeaMap',
+        maxZoom: 18,
+        opacity: 0.9,
+      }).addTo(map);
+    }
 
     // 옅은 전체 항적 → 지나온 항적 → 마커 순으로 쌓는다.
     fullTrackRef.current = L.polyline([], {
