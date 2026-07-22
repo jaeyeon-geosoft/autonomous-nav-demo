@@ -8,21 +8,20 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 1~7번 완료 + **KHOA 전자해도 배경 연동 완료**(브랜치 `feat/khoa-haeareum-map`).
-  전자해도 배경 위에 항적/마커/이상표시가 뜨는 것까지 브라우저 확인 끝.
+- **단계**: 구현 순서 1~7번 완료 + **KHOA 전자해도 배경 연동 완료**(main 머지).
+  전자해도 배경 위에 항적/마커/이상표시가 뜨는 것까지 브라우저 확인 끝. 오버레이는 보류(아래 사유).
 - **마지막으로 건드린 파일**: `src/components/MapView.tsx`(전자해도 WMS 배경), `.env.local`(키, git 제외),
   `.env.example`
 
-### 진행 중 (feat/khoa-haeareum-map 브랜치)
-
-KHOA 개방海 전자해도 배경 연동. **배경은 완료**, 다음은 오버레이:
+### KHOA 전자해도 배경 — 완료
 
 - ✅ 배경: `BASEMAP_ENC573857`(전자해도, 3857 WMS)를 `L.tileLayer.wms`로. 키는 `VITE_KHOA_KEY`(.env.local),
   없으면 CARTO+OpenSeaMap 폴백. **핵심 gotcha: WMS 파라미터 대문자 필수(`uppercase:true`), ServiceKey는 base URL에.**
   자세한 요청 스펙은 memory의 khoa-openapi-reference 참고
-- ⬜ 오버레이(다음): 위험구역·항로·암초/침선·조류 등. WMS(`otmsWmsApi.do?...&Layer=`, **대문자 파라미터 주의**)
-  또는 WFS(`otmsWfsApi.do?...&srsName=EPSG:4326`, lat/lon GML). 토글 레이어로.
-- ⬜ 커밋/푸시로 집·회사 동기화
+- **오버레이(위험구역·항로)는 보류 결정**. 이유: 공식 OpenAPI 오버레이는 백엔드 없는 클라이언트에서 사실상 불가
+  (`otmsWmsApi.do` http 전용+eval-JS, https 변형 404, WFS http 전용+CORS). 되는 건 사이트 내부 프록시
+  `cmm/proxyRun.do`(무키·회색지대)뿐이라 안 씀. 게다가 **전자해도 배경에 항로·통항분리대·위험물(암초/침선)이
+  이미 그려져 있어** 실익이 행정구역선(사격/훈련구역) 정도로 제한적. 나중에 필요하면 그때 재검토.
 
 ### 그다음(원래 남은 것)
 
