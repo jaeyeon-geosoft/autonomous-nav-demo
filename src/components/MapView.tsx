@@ -204,9 +204,17 @@ export function MapView() {
     return usePlaybackStore.subscribe(update);
   }, []);
 
+  const invalidCoordCount = points.filter((point) => !hasValidCoords(point)).length;
+
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+
+      {invalidCoordCount > 0 && (
+        <div className="absolute top-3 left-16 z-[400] rounded border border-alert/50 bg-deep/90 px-3 py-2 text-xs text-alert backdrop-blur">
+          위경도 이상치 {invalidCoordCount}개 지도 범위 계산에서 제외됨
+        </div>
+      )}
 
       {points.length > 0 && (
         <label className="absolute top-3 right-3 z-[400] flex cursor-pointer items-center gap-2 rounded border border-hairline bg-deep/90 px-3 py-2 text-xs text-dim backdrop-blur">

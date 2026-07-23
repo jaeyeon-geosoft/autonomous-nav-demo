@@ -94,10 +94,10 @@ export function findIssues(points: TrackPoint[]): Issue[] {
   points.forEach((point, i) => {
     // 범위 벗어남
     if (point.lat < -90 || point.lat > 90) {
-      issues.push(mk('range', i, point, `위도 범위 벗어남 (${point.lat})`));
+      issues.push(mk('range', i, point, `위도 범위 벗어남 (${point.lat}) · 지도 범위 계산에서 제외됨`));
     }
     if (point.lon < -180 || point.lon > 180) {
-      issues.push(mk('range', i, point, `경도 범위 벗어남 (${point.lon})`));
+      issues.push(mk('range', i, point, `경도 범위 벗어남 (${point.lon}) · 지도 범위 계산에서 제외됨`));
     }
     if (point.sog !== undefined && point.sog < 0) {
       issues.push(mk('range', i, point, `속력 음수 (${point.sog}kn)`));
