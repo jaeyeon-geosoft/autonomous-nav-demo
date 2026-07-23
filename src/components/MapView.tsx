@@ -30,6 +30,9 @@ const toLatLng = (point: TrackPoint): L.LatLngTuple => [point.lat, point.lon];
 /** 이 값보다 더 깊이 확대하지 않는다. 타일이 실제로 존재하는 한계를 넘어서면 회색 화면만 남는다. */
 const MAX_ZOOM = 16;
 
+/** 이 값보다 더 축소하지 않는다. KHOA 전자해도는 한국 근해만 커버해서, 그 밖으로 나가면 회색 화면만 남는다. */
+const MIN_ZOOM = 6;
+
 /** 위경도가 물리적으로 불가능한 범위(품질검증의 "range" 이상치)면 지도 범위 계산에서 제외한다. */
 const hasValidCoords = (point: TrackPoint) =>
   point.lat >= -90 && point.lat <= 90 && point.lon >= -180 && point.lon <= 180;
@@ -54,6 +57,7 @@ export function MapView() {
       center: [35.05, 129.1],
       zoom: 11,
       maxZoom: MAX_ZOOM,
+      minZoom: MIN_ZOOM,
       zoomControl: true,
       attributionControl: true,
     });
