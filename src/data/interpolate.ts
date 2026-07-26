@@ -15,6 +15,22 @@ export interface TrackState {
   index: number;
   /** 전체 구간 중 진행률 0~1 */
   progress: number;
+
+  risk?: number;
+  avoidFlag?: boolean;
+  accident?: boolean;
+
+  windSpeed?: number;
+  windDir?: number;
+  waveHeight?: number;
+  waveDir?: number;
+  currentSpeed?: number;
+  currentDir?: number;
+
+  rudderCmd?: number;
+  rudderActual?: number;
+  engineCmd?: number;
+  engineActual?: number;
 }
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -112,6 +128,48 @@ export function interpolateAt(points: TrackPoint[], timestamp: number): TrackSta
   }
 
   state.heading = state.hdg ?? state.cog ?? bearing(from, to);
+
+  if (from.risk !== undefined) {
+    state.risk = to.risk !== undefined ? lerp(from.risk, to.risk, ratio) : from.risk;
+  }
+  // 플래그는 보간하지 않는다 — 구간 시작 포인트의 값을 그대로 쓴다.
+  state.avoidFlag = from.avoidFlag;
+  state.accident = from.accident;
+
+  if (from.windSpeed !== undefined) {
+    state.windSpeed = to.windSpeed !== undefined ? lerp(from.windSpeed, to.windSpeed, ratio) : from.windSpeed;
+  }
+  if (from.windDir !== undefined) {
+    state.windDir = to.windDir !== undefined ? lerpAngle(from.windDir, to.windDir, ratio) : from.windDir;
+  }
+  if (from.waveHeight !== undefined) {
+    state.waveHeight = to.waveHeight !== undefined ? lerp(from.waveHeight, to.waveHeight, ratio) : from.waveHeight;
+  }
+  if (from.waveDir !== undefined) {
+    state.waveDir = to.waveDir !== undefined ? lerpAngle(from.waveDir, to.waveDir, ratio) : from.waveDir;
+  }
+  if (from.currentSpeed !== undefined) {
+    state.currentSpeed =
+      to.currentSpeed !== undefined ? lerp(from.currentSpeed, to.currentSpeed, ratio) : from.currentSpeed;
+  }
+  if (from.currentDir !== undefined) {
+    state.currentDir =
+      to.currentDir !== undefined ? lerpAngle(from.currentDir, to.currentDir, ratio) : from.currentDir;
+  }
+  if (from.rudderCmd !== undefined) {
+    state.rudderCmd = to.rudderCmd !== undefined ? lerp(from.rudderCmd, to.rudderCmd, ratio) : from.rudderCmd;
+  }
+  if (from.rudderActual !== undefined) {
+    state.rudderActual =
+      to.rudderActual !== undefined ? lerp(from.rudderActual, to.rudderActual, ratio) : from.rudderActual;
+  }
+  if (from.engineCmd !== undefined) {
+    state.engineCmd = to.engineCmd !== undefined ? lerp(from.engineCmd, to.engineCmd, ratio) : from.engineCmd;
+  }
+  if (from.engineActual !== undefined) {
+    state.engineActual =
+      to.engineActual !== undefined ? lerp(from.engineActual, to.engineActual, ratio) : from.engineActual;
+  }
 
   return state;
 }

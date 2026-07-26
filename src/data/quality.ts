@@ -6,8 +6,10 @@ import type { TrackPoint } from './types';
  * - missing: 데이터셋에 대체로 존재하는 선택 필드가 이 포인트에서만 비어있음
  * - time: 시각 역전/중복, 또는 지나치게 큰 공백
  * - range: 위경도/속도/각도가 물리적으로 불가능한 범위
+ * - accident: 데이터에 사고(Accident) 플래그가 찍힌 지점
+ * - avoid: 데이터에 회피 동작(AvoidFlag) 플래그가 찍힌 지점
  */
-export type IssueKind = 'jump' | 'missing' | 'time' | 'range';
+export type IssueKind = 'jump' | 'missing' | 'time' | 'range' | 'accident' | 'avoid';
 
 export interface Issue {
   kind: IssueKind;
@@ -116,6 +118,15 @@ export function findIssues(points: TrackPoint[]): Issue[] {
       }
     }
 
+    // 사고/회피 플래그: 데이터 품질 이상은 아니지만, 재생 중 짚어볼 지점이라
+    // 같은 목록/지도 마커 인프라로 노출한다.
+    if (point.accident) {
+      issues.push(mk('accident', i, point, '사고 발생 (Accident=1)'));
+    }
+    if (point.avoidFlag) {
+      issues.push(mk('avoid', i, point, '회피 동작 중 (AvoidFlag=1)'));
+    }
+
     if (i === 0) return;
     const prev = points[i - 1];
     const dt = point.timestamp - prev.timestamp;
@@ -143,7 +154,14 @@ export function findIssues(points: TrackPoint[]): Issue[] {
 
 /** 유형별 개수. 품질 요약에 쓴다. */
 export function countByKind(issues: Issue[]): Record<IssueKind, number> {
-  const counts: Record<IssueKind, number> = { jump: 0, missing: 0, time: 0, range: 0 };
+  const counts: Record<IssueKind, number> = {
+    jump: 0,
+    missing: 0,
+    time: 0,
+    range: 0,
+    accident: 0,
+    avoid: 0,
+  };
   for (const issue of issues) counts[issue.kind] += 1;
   return counts;
 }

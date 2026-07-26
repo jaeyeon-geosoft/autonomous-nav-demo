@@ -6,14 +6,32 @@ import type { TrackPoint, TrackField } from './types';
  * 별칭은 normalizeHeader를 거친 형태(소문자, 공백/언더스코어/하이픈 제거)로 적는다.
  */
 const FIELD_ALIASES: Record<TrackField, string[]> = {
-  timestamp: ['timestamp', 'time', 'datetime', 'ts', 'utc', '시간', '시각', '일시'],
-  lat: ['lat', 'latitude', '위도'],
-  lon: ['lon', 'lng', 'long', 'longitude', '경도'],
+  timestamp: [
+    'timestamp', 'time', 'datetime', 'ts', 'utc', '시간', '시각', '일시',
+    'time[s]', 'time(sec)',
+  ],
+  lat: ['lat', 'latitude', '위도', 'latitude[deg]', 'gpslat[deg]'],
+  lon: ['lon', 'lng', 'long', 'longitude', '경도', 'longitude[deg]', 'gpslon[deg]'],
   sog: ['sog', 'speed', 'speedoverground', '속력', '속도'],
   cog: ['cog', 'course', 'courseoverground', '침로', '대지침로'],
-  hdg: ['hdg', 'heading', 'trueheading', '선수방위', '방위'],
-  rot: ['rot', 'rateofturn', 'turnrate', '선회율'],
-  status: ['status', 'navstatus', 'navigationstatus', 'mode', '상태', '운항상태'],
+  hdg: ['hdg', 'heading', 'trueheading', '선수방위', '방위', 'gyroheading[deg]'],
+  rot: ['rot', 'rateofturn', 'turnrate', '선회율', 'turningrate[deg/s]'],
+  status: ['status', 'navstatus', 'navigationstatus', 'mode', '상태', '운항상태', 'steeringmode'],
+
+  // STR 시뮬레이션 데이터셋(InstData) 컬럼명 — docs/str 데이터 분석.xlsx 참고
+  risk: ['risk', '위험도'],
+  avoidFlag: ['avoidflag', '회피동작플래그', '회피플래그'],
+  accident: ['accident', '사고플래그', '사고'],
+  windSpeed: ['windspeed[m/s]', 'wind(m/sec)'],
+  windDir: ['winddir[deg]', 'wind(deg)'],
+  waveHeight: ['waveheight[m]', 'wave(m)'],
+  waveDir: ['wavedir[deg]', 'wave(deg)'],
+  currentSpeed: ['currentdrift[m/s]', 'curr(m/sec)'],
+  currentDir: ['currentset[deg]', 'curr(deg)'],
+  rudderCmd: ['crudcmd[deg]', 'prudcmd[deg]', 'srudcmd[deg]'],
+  rudderActual: ['crudder[deg]', 'prudder[deg]', 'prudder(deg)', 'srudder[deg]', 'srudder(deg)'],
+  engineCmd: ['cengcmd', 'pengcmd', 'sengcmd'],
+  engineActual: ['cengine', 'pengine', 'sengine'],
 };
 
 const REQUIRED_FIELDS: TrackField[] = ['timestamp', 'lat', 'lon'];
@@ -41,6 +59,18 @@ function parseNumber(value: unknown): number | undefined {
   if (trimmed === '') return undefined;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/** 0/1 플래그 컬럼(Accident, AvoidFlag)을 boolean으로. */
+function parseFlag(value: unknown): boolean | undefined {
+  const asNumber = parseNumber(value);
+  if (asNumber !== undefined) return asNumber !== 0;
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (trimmed === 'true') return true;
+    if (trimmed === 'false') return false;
+  }
+  return undefined;
 }
 
 /**
@@ -116,6 +146,45 @@ export function mapRowsToTrack(rows: Record<string, unknown>[]): MappingResult {
 
     const status = columns.status ? row[columns.status] : undefined;
     if (typeof status === 'string' && status.trim() !== '') point.status = status.trim();
+
+    const risk = columns.risk ? parseNumber(row[columns.risk]) : undefined;
+    if (risk !== undefined) point.risk = risk;
+
+    const avoidFlag = columns.avoidFlag ? parseFlag(row[columns.avoidFlag]) : undefined;
+    if (avoidFlag !== undefined) point.avoidFlag = avoidFlag;
+
+    const accident = columns.accident ? parseFlag(row[columns.accident]) : undefined;
+    if (accident !== undefined) point.accident = accident;
+
+    const windSpeed = columns.windSpeed ? parseNumber(row[columns.windSpeed]) : undefined;
+    if (windSpeed !== undefined) point.windSpeed = windSpeed;
+
+    const windDir = columns.windDir ? parseNumber(row[columns.windDir]) : undefined;
+    if (windDir !== undefined) point.windDir = normalizeAngle(windDir);
+
+    const waveHeight = columns.waveHeight ? parseNumber(row[columns.waveHeight]) : undefined;
+    if (waveHeight !== undefined) point.waveHeight = waveHeight;
+
+    const waveDir = columns.waveDir ? parseNumber(row[columns.waveDir]) : undefined;
+    if (waveDir !== undefined) point.waveDir = normalizeAngle(waveDir);
+
+    const currentSpeed = columns.currentSpeed ? parseNumber(row[columns.currentSpeed]) : undefined;
+    if (currentSpeed !== undefined) point.currentSpeed = currentSpeed;
+
+    const currentDir = columns.currentDir ? parseNumber(row[columns.currentDir]) : undefined;
+    if (currentDir !== undefined) point.currentDir = normalizeAngle(currentDir);
+
+    const rudderCmd = columns.rudderCmd ? parseNumber(row[columns.rudderCmd]) : undefined;
+    if (rudderCmd !== undefined) point.rudderCmd = rudderCmd;
+
+    const rudderActual = columns.rudderActual ? parseNumber(row[columns.rudderActual]) : undefined;
+    if (rudderActual !== undefined) point.rudderActual = rudderActual;
+
+    const engineCmd = columns.engineCmd ? parseNumber(row[columns.engineCmd]) : undefined;
+    if (engineCmd !== undefined) point.engineCmd = engineCmd;
+
+    const engineActual = columns.engineActual ? parseNumber(row[columns.engineActual]) : undefined;
+    if (engineActual !== undefined) point.engineActual = engineActual;
 
     points.push(point);
   }

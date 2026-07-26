@@ -8,10 +8,50 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 1~7번 완료 + **KHOA 전자해도 배경 연동 완료**(main 머지).
-  전자해도 배경 위에 항적/마커/이상표시가 뜨는 것까지 브라우저 확인 끝. 오버레이는 보류(아래 사유).
-- **마지막으로 건드린 파일**: `src/components/MapView.tsx`(전자해도 WMS 배경), `.env.local`(키, git 제외),
-  `.env.example`
+- **단계**: 구현 순서 1~7번 + KHOA 전자해도 배경 완료 + **STR 데이터셋 대응(1차) 완료**(dev 브랜치, 미머지).
+  분석가가 준 `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전)를 바탕으로 매핑/필드 확장. 브라우저 확인 끝.
+- **마지막으로 건드린 파일**: `src/data/types.ts`, `src/data/mapping.ts`, `src/data/interpolate.ts`,
+  `src/data/quality.ts`, `src/data/mockTrack.ts`, `src/components/StatusPanel.tsx`, `src/components/IssueList.tsx`
+
+### STR 데이터셋 대응(1차) — 완료
+
+`str 데이터 분석.xlsx`는 "FWHanban STR" 시뮬레이션 데이터셋(InstData/traffic_N/Command/Environ/Ownship 5개 테이블)의
+**컬럼 사전**(실제 CSV 아님). InstData 한 행 안에 위치+환경+제어+자율안전 정보가 다 있어서 기존 단일 항적
+구조에 그대로 편입 가능한 부분만 이번에 반영. 4가지 중 다중 선박(traffic_N)만 다음 단계로 미룸(아래 참고).
+
+- `types.ts`: `TrackPoint`에 `risk/avoidFlag/accident`(자율·안전), `windSpeed/windDir/waveHeight/waveDir/
+  currentSpeed/currentDir`(해상외란), `rudderCmd/rudderActual/engineCmd/engineActual`(제어 명령 vs 실제) 추가
+- `mapping.ts`: `FIELD_ALIASES`에 문서에 나온 실제 컬럼명을 리터럴로 등록
+  (`Latitude[deg]`, `GyroHeading[deg]`, `TurningRate[deg/s]`, `Time(sec)`, `Wind(m/sec)` 등).
+  **결정**: 대괄호/소괄호를 정규식으로 벗기는 범용 방식은 안 씀 — Environ 테이블의 `Wind(m/sec)`/`Wind(deg)`처럼
+  같은 베이스명에 단위만 다른 컬럼이 있어서, 벗기면 정규화 후 문자열이 충돌해 한쪽 데이터가 유실됨.
+  그래서 원본 표기를 그대로 살린 리터럴 별칭을 추가하는 쪽으로 감
+  - 다축 타/엔진(P/S/C)은 대표값 하나로 축약: Center 우선, 없으면 Port(`rudderCmd`/`rudderActual`/`engineCmd`/
+    `engineActual`). InstData에 C가 없는 2축 선박(Command 테이블 등)은 자동으로 Port 값을 씀
+  - `AutoCourse[deg]`(자율운항의 목표 침로)는 `cog`(실제 대지침로)에 매핑하지 않음 — 의미가 다른 값이라
+    섣불리 합치면 잘못된 정보가 됨. 필요해지면 별도 필드로
+- `quality.ts`/`IssueList.tsx`: `accident`/`avoid`를 기존 `IssueKind`에 추가해 재사용
+  (사고·회피 지점도 "클릭하면 그 시점으로 이동"이 그대로 필요해서). `MapView.tsx`는 무수정 —
+  이슈 마커 루프가 kind를 안 가리고 범용으로 동작해서 자동으로 지도에 뜸.
+  패널 라벨은 "데이터 품질" → "품질 · 이벤트"로(사고/회피는 데이터 결함이 아니라 시뮬레이션 이벤트라서)
+- `StatusPanel.tsx`: Risk 리드아웃 + Accident/AvoidFlag 뱃지 + "해상 외란"/"타·엔진" 섹션.
+  두 섹션은 데이터셋에 해당 필드가 하나도 없으면 통째로 숨김(대부분의 CSV는 이 필드가 없으므로)
+- `mockTrack.ts`: 새 필드 데모용 값 추가(진행 40~55% 구간에 위험도 상승 + AvoidFlag 근접상황 흉내).
+  **accident는 mock에서 항상 false** — 결정론적 예시 항적이 "사고"로 보이면 다른 사람에게 보여줄 때 오해 소지
+- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 (1) mock 항적 → Risk/외란/제어 값,
+  AvoidFlag 구간의 지도 마젠타 마커·이슈 목록·상태 뱃지 확인, (2) 문서의 실제 컬럼명(`Latitude[deg]` 등)으로
+  만든 5행 샘플 CSV 업로드 → 위경도/HDG/Risk/외란/제어 전부 정확히 매핑되는 것 확인
+
+### 다음: 다중 선박(traffic_N) 지원 — 아직 시작 안 함
+
+분석가 문서의 4번째 요청 항목. `traffic_숫자` 테이블(주변 타선 + 예인선)은 InstData와 별개 파일이고
+Time/PacketId로 조인해야 하는 구조라, 지금의 "단일 `TrackPoint[]`" 아키텍처를 넘어선다. 필요 작업:
+- 자선과 별개인 타선 데이터 모델 + 다중 파일(또는 ID 컬럼 포함 단일 파일) 로더
+- `playbackStore`에 타선 배열 추가, `MapView`에 마커 N개(자선과 다른 아이콘/색) + 각자 시간 범위 안에서만 표시
+- 실제 데이터 없이 검증하려면 `mockTrack`류로 타선 mock도 필요
+
+실 데이터가 아직 없어 컬럼명이 문서와 100% 일치할지 불확실 — **실제 traffic CSV를 받으면 그때 착수**가 나을지,
+아니면 문서 스펙만으로 먼저 골격을 만들지는 다음 세션에서 결정.
 
 ### KHOA 전자해도 배경 — 완료
 
@@ -25,7 +65,9 @@
 
 ### 그다음(원래 남은 것)
 
-- **실제 데이터 확정 시**: `src/data/mapping.ts`의 `FIELD_ALIASES`와 CLAUDE.md/SPEC.md 갱신. EUC-KR 대응
+- **다중 선박(traffic_N) 지원** — 위 "다음" 항목 참고
+- **실제 STR CSV를 받으면**: 문서 기반으로 추가한 `FIELD_ALIASES` 리터럴이 실제 헤더와 정확히
+  일치하는지 확인(대소문자·공백 표기가 문서와 다를 수 있음). EUC-KR 대응도 그때
 - 다듬기(선택): 이슈 목록 가상화, 품질 임계값(`MAX_SPEED_KNOTS` 등) 조정
 
 색: 마젠타(`--color-alert: #ff3d9a`)는 이상 구간 전용으로 예약. 다른 용도로 쓰지 말 것.
@@ -39,8 +81,9 @@
   7번은 확장 연결 상태로, dev 서버 → `sample-anomalies.csv` 업로드 → 이슈 7건이
   지도/리본/목록에 뜨는 것까지 스크린샷으로 확인함
 - **미해결/대기**:
-    - 실제 데이터 형식 미확정 (분석가가 나중에 CSV 제공 예정) → 확정되면
-      CLAUDE.md 데이터 모델 + SPEC.md 컬럼 매핑 갱신
+    - 실제 데이터 파일은 아직 없음. 분석가가 `str 데이터 분석.xlsx`(컬럼 사전)만 줬고,
+      이걸로 매핑/필드를 선반영함(위 "STR 데이터셋 대응" 참고). **실제 CSV가 오면 컬럼명이
+      문서와 정확히 일치하는지 재확인 필요** → 다르면 CLAUDE.md 데이터 모델 + SPEC.md 갱신
     - 디자인 방향: 우선 알아서 깔끔하게, 이후 다듬기.
       현재 App.tsx는 2번 확인용 임시 화면이며 4~6번에서 교체 예정
       (그때 SPEC의 `public/예시 디자인 *.png` + frontend-design skill 적용)
