@@ -1,4 +1,4 @@
-import type { TrackPoint } from './types';
+import type { TrackPoint, TargetPoint } from './types';
 import { normalizeAngle } from './mapping';
 
 /** 재생 커서 시각에서의 선박 상태. 화면은 이것만 구독해서 그린다. */
@@ -172,4 +172,52 @@ export function interpolateAt(points: TrackPoint[], timestamp: number): TrackSta
   }
 
   return state;
+}
+
+/** 재생 커서 시각에서의 타선/예인선 상태. */
+export interface TargetState {
+  lat: number;
+  lon: number;
+  heading: number;
+  tugEnable?: boolean;
+}
+
+/**
+ * 타선(TargetShip) 상태 보간. 자선의 interpolateAt과 달리 클램프하지 않는다 —
+ * 커서가 이 선박의 데이터 구간 밖이면 null을 반환해 화면에서 사라지게 한다
+ * (시나리오 중간에 등장/퇴장하는 선박을 표현하기 위함).
+ */
+export function interpolateTargetAt(points: TargetPoint[], timestamp: number): TargetState | null {
+  if (points.length === 0) return null;
+
+  const start = points[0].timestamp;
+  const end = points[points.length - 1].timestamp;
+  if (timestamp < start || timestamp > end) return null;
+
+  const index = findSegment(points, timestamp);
+  const from = points[index];
+  const to = points[index + 1];
+
+  if (!to) {
+    const previous = points[index - 1];
+    return {
+      lat: from.lat,
+      lon: from.lon,
+      heading: from.yaw ?? (previous ? bearing(previous, from) : 0),
+      tugEnable: from.tugEnable,
+    };
+  }
+
+  const segmentSpan = to.timestamp - from.timestamp;
+  const ratio = segmentSpan > 0 ? (timestamp - from.timestamp) / segmentSpan : 0;
+
+  return {
+    lat: lerp(from.lat, to.lat, ratio),
+    lon: lerp(from.lon, to.lon, ratio),
+    heading:
+      from.yaw !== undefined
+        ? lerpAngle(from.yaw, to.yaw ?? from.yaw, ratio)
+        : bearing(from, to),
+    tugEnable: from.tugEnable,
+  };
 }

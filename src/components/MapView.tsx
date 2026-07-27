@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { usePlaybackStore } from '../playback/playbackStore';
-import { interpolateAt } from '../data/interpolate';
-import type { TrackPoint } from '../data/types';
+import { interpolateAt, interpolateTargetAt } from '../data/interpolate';
+import type { TrackPoint, TargetShip } from '../data/types';
 import type { Issue } from '../data/quality';
 
 const BASE_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -25,6 +25,13 @@ const VESSEL_SVG = `
         fill="#35e0c4" stroke="#071119" stroke-width="1.2" stroke-linejoin="round" />
 </svg>`;
 
+/** 타선/예인선 마커. 자선(청록)과 구분되는 호박색. 자선보다 작게 그려 시선이 자선에 먼저 가게 한다. */
+const TARGET_SVG = `
+<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+  <path d="M12 1.5 L19.5 21.5 L12 17.2 L4.5 21.5 Z"
+        fill="#ffb238" stroke="#071119" stroke-width="1.2" stroke-linejoin="round" />
+</svg>`;
+
 const toLatLng = (point: TrackPoint): L.LatLngTuple => [point.lat, point.lon];
 
 /** 이 값보다 더 깊이 확대하지 않는다. 타일이 실제로 존재하는 한계를 넘어서면 회색 화면만 남는다. */
@@ -44,9 +51,12 @@ export function MapView() {
   const traveledRef = useRef<L.Polyline | null>(null);
   const vesselRef = useRef<L.Marker | null>(null);
   const alertRef = useRef<L.LayerGroup | null>(null);
+  const targetLayerRef = useRef<L.LayerGroup | null>(null);
+  const targetMarkersRef = useRef(new Map<string, L.Marker>());
 
   const points = usePlaybackStore((state) => state.points);
   const issues = usePlaybackStore((state) => state.issues);
+  const targets = usePlaybackStore((state) => state.targets);
   const [showFullTrack, setShowFullTrack] = useState(true);
 
   // 지도는 한 번만 만든다.
@@ -108,6 +118,8 @@ export function MapView() {
     // 이상 구간 하이라이트. 항적 위, 마커 아래(마커는 별도 pane이라 항상 위).
     alertRef.current = L.layerGroup().addTo(map);
 
+    targetLayerRef.current = L.layerGroup().addTo(map);
+
     vesselRef.current = L.marker([35.05, 129.1], {
       icon: L.divIcon({
         className: 'vessel-marker',
@@ -115,6 +127,8 @@ export function MapView() {
         iconSize: [26, 26],
         iconAnchor: [13, 13],
       }),
+      // 타선 마커보다 항상 위에 그려지도록(둘 다 같은 markerPane을 씀).
+      zIndexOffset: 1000,
       interactive: false,
       keyboard: false,
     }).addTo(map);
@@ -187,21 +201,64 @@ export function MapView() {
   /*
    * 커서는 재생 중 매 프레임 바뀐다. React 상태로 구독하면 프레임마다
    * 리렌더가 도므로, 스토어를 직접 구독해 Leaflet 객체만 갱신한다.
+   *
+   * targets도 state에서 직접 읽는다(ref에 따로 캐시하면, setTargets 직후
+   * 이 구독이 React 렌더보다 먼저 동기로 실행돼 구 목록을 참조하게 된다).
    */
   useEffect(() => {
-    const update = (state: { points: TrackPoint[]; cursor: number }) => {
+    const update = (state: { points: TrackPoint[]; cursor: number; targets: TargetShip[] }) => {
       const current = interpolateAt(state.points, state.cursor);
-      if (!current) return;
+      if (current) {
+        vesselRef.current?.setLatLng([current.lat, current.lon]);
 
-      vesselRef.current?.setLatLng([current.lat, current.lon]);
+        const element = vesselRef.current?.getElement()?.querySelector<HTMLElement>('.vessel-rot');
+        if (element) element.style.transform = `rotate(${current.heading}deg)`;
 
-      const element = vesselRef.current?.getElement()?.querySelector<HTMLElement>('.vessel-rot');
-      if (element) element.style.transform = `rotate(${current.heading}deg)`;
+        traveledRef.current?.setLatLngs([
+          ...state.points.slice(0, current.index + 1).map(toLatLng),
+          [current.lat, current.lon] as L.LatLngTuple,
+        ]);
+      }
 
-      traveledRef.current?.setLatLngs([
-        ...state.points.slice(0, current.index + 1).map(toLatLng),
-        [current.lat, current.lon] as L.LatLngTuple,
-      ]);
+      // 타선 마커: 이 시각에 데이터 구간 안에 있는 배만 만들고, 벗어난 배는 지운다.
+      const layer = targetLayerRef.current;
+      if (!layer) return;
+      const markers = targetMarkersRef.current;
+      const seen = new Set<string>();
+
+      for (const ship of state.targets) {
+        const targetState = interpolateTargetAt(ship.points, state.cursor);
+        if (!targetState) continue;
+        seen.add(ship.id);
+
+        let marker = markers.get(ship.id);
+        if (!marker) {
+          marker = L.marker([targetState.lat, targetState.lon], {
+            icon: L.divIcon({
+              className: 'target-marker',
+              html: `<div class="vessel-rot">${TARGET_SVG}</div>`,
+              iconSize: [18, 18],
+              iconAnchor: [9, 9],
+            }),
+            // 이름 툴팁이 호버로 뜨려면 상호작용 가능해야 한다(자선 마커와 달리).
+            interactive: true,
+            keyboard: false,
+          }).addTo(layer);
+          if (ship.name) marker.bindTooltip(ship.name, { direction: 'top', offset: [0, -10] });
+          markers.set(ship.id, marker);
+        }
+
+        marker.setLatLng([targetState.lat, targetState.lon]);
+        const element = marker.getElement()?.querySelector<HTMLElement>('.vessel-rot');
+        if (element) element.style.transform = `rotate(${targetState.heading}deg)`;
+      }
+
+      for (const [id, marker] of markers) {
+        if (!seen.has(id)) {
+          layer.removeLayer(marker);
+          markers.delete(id);
+        }
+      }
     };
 
     update(usePlaybackStore.getState());
@@ -221,15 +278,22 @@ export function MapView() {
       )}
 
       {points.length > 0 && (
-        <label className="absolute top-3 right-3 z-[400] flex cursor-pointer items-center gap-2 rounded border border-hairline bg-deep/90 px-3 py-2 text-xs text-dim backdrop-blur">
-          <input
-            type="checkbox"
-            checked={showFullTrack}
-            onChange={(event) => setShowFullTrack(event.target.checked)}
-            className="accent-track"
-          />
-          전체 항적 미리보기
-        </label>
+        <div className="absolute top-3 right-3 z-[400] flex flex-col items-end gap-2">
+          <label className="flex cursor-pointer items-center gap-2 rounded border border-hairline bg-deep/90 px-3 py-2 text-xs text-dim backdrop-blur">
+            <input
+              type="checkbox"
+              checked={showFullTrack}
+              onChange={(event) => setShowFullTrack(event.target.checked)}
+              className="accent-track"
+            />
+            전체 항적 미리보기
+          </label>
+          {targets.length > 0 && (
+            <span className="rounded border border-hairline bg-deep/90 px-3 py-2 text-xs text-dim backdrop-blur">
+              타선 <span className="text-ink">{targets.length}</span>척 로드됨
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

@@ -8,16 +8,54 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 1~7번 + KHOA 전자해도 배경 완료 + **STR 데이터셋 대응(1차) 완료**(dev 브랜치, 미머지).
-  분석가가 준 `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전)를 바탕으로 매핑/필드 확장. 브라우저 확인 끝.
-- **마지막으로 건드린 파일**: `src/data/types.ts`, `src/data/mapping.ts`, `src/data/interpolate.ts`,
-  `src/data/quality.ts`, `src/data/mockTrack.ts`, `src/components/StatusPanel.tsx`, `src/components/IssueList.tsx`
+- **단계**: 구현 순서 1~7번 + KHOA 전자해도 배경 완료 + **STR 데이터셋 대응(1차) 완료** +
+  **다중 선박(traffic_N) 지원 완료**. 1차는 `feat/str-dataset-fields` 브랜치에 커밋(미머지).
+  다중 선박은 같은 브랜치 위에서 이어서 작업, 아직 커밋 전. 분석가가 준
+  `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전) 기반. 브라우저 확인 끝.
+- **마지막으로 건드린 파일**: `src/data/types.ts`(TargetPoint/TargetShip), `src/data/trafficMapping.ts`(신규),
+  `src/data/parseTraffic.ts`(신규), `src/data/mockTargets.ts`(신규), `src/data/interpolate.ts`
+  (interpolateTargetAt), `src/playback/playbackStore.ts`(targets), `src/components/MapView.tsx`,
+  `src/components/TrafficLoader.tsx`(신규), `src/App.tsx`
+
+### 다중 선박(traffic_N) 지원 — 완료
+
+`str 데이터 분석.xlsx`가 요청한 4번째 항목. `traffic_숫자` 테이블(주변 타선 + 예인선)은 InstData와 별개 파일이고
+ID 컬럼으로 여러 척이 한 파일에 섞여 있는 구조. 자선(`TrackPoint`)과는 별개 모델로 분리해서 구현.
+
+- `types.ts`: `TargetPoint`(한 시점 상태: lat/lon/yaw/turningRate/tugEnable) + `TargetShip`(id/name/
+  shipType/length/beam + points). **결정**: `TrackPoint`를 재사용하지 않고 별도 타입으로 뺌 — TrackPoint는
+  CLAUDE.md가 "자선 표준 모델"로 정의해둔 계약이라, 타선 전용 필드(tugEnable 등)를 얹으면 그 계약이 흐려짐
+- `trafficMapping.ts`(신규) + `parseTraffic.ts`(신규): `mapping.ts`와 같은 패턴(별칭 테이블 + 헤더 정규화)이지만
+  ID 컬럼으로 행을 선박별로 그룹핑하는 점이 다름. `normalizeHeader`/`parseNumber`/`parseTimestamp`는
+  `mapping.ts`에서 export해 재사용(중복 안 함)
+- `interpolate.ts`: `interpolateTargetAt()` 신규 — 자선의 `interpolateAt()`과 달리 **클램프하지 않고
+  범위 밖이면 null**을 반환. 시나리오 중간에 등장/퇴장하는 배를 표현하려면 이게 맞음(자선은 등장/퇴장이
+  없어서 클램프가 맞았던 것)
+- `playbackStore.ts`: `targets`/`setTargets` 추가. `useCurrentTargets()` 훅도 추가했지만 **MapView에서는 안 씀**
+  — 커서가 매 프레임 바뀌는데 훅으로 구독하면 리렌더가 돎(기존 자선 마커와 같은 이유로 회피)
+- `MapView.tsx`: 기존 "스토어 직접 구독" 갱신 함수를 확장해 타선 마커(Map<id, L.Marker>)를 매 프레임
+  생성/갱신/제거. **버그 하나 잡음**: 처음엔 자선 마커처럼 `interactive: false`로 만들었더니 `bindTooltip`
+  호버가 아예 안 뜸(상호작용 꺼지면 마우스 이벤트 자체가 안 걸림) → 타선 마커만 `interactive: true`로 수정
+  - **동기화 순서 주의**: 타선 목록을 ref에 캐시해 읽으면 안 됨 — `setTargets` 직후 이 구독 콜백이 React
+    렌더보다 먼저 동기 실행돼 구 목록을 보게 됨. `usePlaybackStore.subscribe(update)`의 `state` 인자에서
+    직접 읽어야 항상 최신
+  - 자선 마커에 `zIndexOffset: 1000` 추가 — 둘 다 같은 markerPane이라, 안 하면 타선이 자선을 가릴 수 있음
+- `TrafficLoader.tsx`(신규): `FileLoader`의 compact 변형과 같은 패턴. 헤더에 "타선 데이터" 버튼.
+  자선 항적이 새로 로드되면(`load()`) 이전 타선은 `setTargets([])`로 같이 리셋(다른 시나리오라 안 맞음)
+- `mockTargets.ts`(신규): `generateMockTrack()`의 근접상황 구간(40~55%)에 맞춰 배 1척이 자선 항로를
+  가로질러 지나가게(등장→근접→퇴장) 만든 mock. "예시 항적" 버튼 누르면 자동으로 같이 뜸
+- 지도 배지: 우상단에 "타선 N척 로드됨" 표시(전체 로드 수, 현재 화면에 보이는 수 아님 — 프레임마다
+  안 바뀌어야 리렌더가 안 도므로 일부러 필터링 안 함)
+- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 (1) mock 항적 → 근접상황 구간에서만 호박색
+  타선 마커 등장, 구간 밖에서는 사라짐, 호버 시 "DEMO TARGET" 툴팁 확인. (2) 문서의 실제 traffic 컬럼명
+  (`ID`, `ShipName`, `Latitude[deg]`, `Yaw[deg]`, `TugEnable` 등)으로 만든 2척(어선/예인선) 샘플 CSV를
+  자선 CSV와 함께 업로드 → "타선 2척 로드됨" + 지도에 두 마커가 각자 방향으로 정확히 뜨는 것 확인
 
 ### STR 데이터셋 대응(1차) — 완료
 
 `str 데이터 분석.xlsx`는 "FWHanban STR" 시뮬레이션 데이터셋(InstData/traffic_N/Command/Environ/Ownship 5개 테이블)의
 **컬럼 사전**(실제 CSV 아님). InstData 한 행 안에 위치+환경+제어+자율안전 정보가 다 있어서 기존 단일 항적
-구조에 그대로 편입 가능한 부분만 이번에 반영. 4가지 중 다중 선박(traffic_N)만 다음 단계로 미룸(아래 참고).
+구조에 그대로 편입 가능한 부분만 이번에 반영. 다중 선박(traffic_N)은 별도 모델이라 위 항목으로 분리.
 
 - `types.ts`: `TrackPoint`에 `risk/avoidFlag/accident`(자율·안전), `windSpeed/windDir/waveHeight/waveDir/
   currentSpeed/currentDir`(해상외란), `rudderCmd/rudderActual/engineCmd/engineActual`(제어 명령 vs 실제) 추가
@@ -42,17 +80,6 @@
   AvoidFlag 구간의 지도 마젠타 마커·이슈 목록·상태 뱃지 확인, (2) 문서의 실제 컬럼명(`Latitude[deg]` 등)으로
   만든 5행 샘플 CSV 업로드 → 위경도/HDG/Risk/외란/제어 전부 정확히 매핑되는 것 확인
 
-### 다음: 다중 선박(traffic_N) 지원 — 아직 시작 안 함
-
-분석가 문서의 4번째 요청 항목. `traffic_숫자` 테이블(주변 타선 + 예인선)은 InstData와 별개 파일이고
-Time/PacketId로 조인해야 하는 구조라, 지금의 "단일 `TrackPoint[]`" 아키텍처를 넘어선다. 필요 작업:
-- 자선과 별개인 타선 데이터 모델 + 다중 파일(또는 ID 컬럼 포함 단일 파일) 로더
-- `playbackStore`에 타선 배열 추가, `MapView`에 마커 N개(자선과 다른 아이콘/색) + 각자 시간 범위 안에서만 표시
-- 실제 데이터 없이 검증하려면 `mockTrack`류로 타선 mock도 필요
-
-실 데이터가 아직 없어 컬럼명이 문서와 100% 일치할지 불확실 — **실제 traffic CSV를 받으면 그때 착수**가 나을지,
-아니면 문서 스펙만으로 먼저 골격을 만들지는 다음 세션에서 결정.
-
 ### KHOA 전자해도 배경 — 완료
 
 - ✅ 배경: `BASEMAP_ENC573857`(전자해도, 3857 WMS)를 `L.tileLayer.wms`로. 키는 `VITE_KHOA_KEY`(.env.local),
@@ -65,10 +92,9 @@ Time/PacketId로 조인해야 하는 구조라, 지금의 "단일 `TrackPoint[]`
 
 ### 그다음(원래 남은 것)
 
-- **다중 선박(traffic_N) 지원** — 위 "다음" 항목 참고
-- **실제 STR CSV를 받으면**: 문서 기반으로 추가한 `FIELD_ALIASES` 리터럴이 실제 헤더와 정확히
-  일치하는지 확인(대소문자·공백 표기가 문서와 다를 수 있음). EUC-KR 대응도 그때
-- 다듬기(선택): 이슈 목록 가상화, 품질 임계값(`MAX_SPEED_KNOTS` 등) 조정
+- **실제 STR CSV를 받으면**: 문서 기반으로 추가한 `FIELD_ALIASES`/`TRAFFIC_ALIASES` 리터럴이 실제 헤더와
+  정확히 일치하는지 확인(대소문자·공백 표기가 문서와 다를 수 있음). EUC-KR 대응도 그때
+- 다듬기(선택): 이슈 목록 가상화, 품질 임계값(`MAX_SPEED_KNOTS` 등) 조정, 타선 전체 항적(꼬리) 표시 여부
 
 색: 마젠타(`--color-alert: #ff3d9a`)는 이상 구간 전용으로 예약. 다른 용도로 쓰지 말 것.
 

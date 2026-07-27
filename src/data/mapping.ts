@@ -46,13 +46,14 @@ export interface MappingResult {
   droppedRows: number;
 }
 
-const normalizeHeader = (header: string): string =>
+/** traffic_숫자 등 다른 매핑 레이어(trafficMapping.ts)에서도 같은 정규화를 쓰기 위해 export. */
+export const normalizeHeader = (header: string): string =>
   header.trim().toLowerCase().replace(/[\s_-]/g, '');
 
 /** 각도를 0~360으로 정규화. */
 export const normalizeAngle = (deg: number): number => ((deg % 360) + 360) % 360;
 
-function parseNumber(value: unknown): number | undefined {
+export function parseNumber(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -77,7 +78,7 @@ function parseFlag(value: unknown): boolean | undefined {
  * 유닉스 초/밀리초, ISO 문자열을 모두 유닉스 ms로 통일.
  * 1e11 미만의 숫자는 초 단위로 본다(1e11ms = 1973년, 1e11s = 5138년).
  */
-function parseTimestamp(value: unknown): number | undefined {
+export function parseTimestamp(value: unknown): number | undefined {
   const asNumber = parseNumber(value);
   if (asNumber !== undefined) {
     return asNumber < 1e11 ? asNumber * 1000 : asNumber;
