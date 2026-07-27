@@ -19,21 +19,24 @@ const KHOA_ENC_WMS = 'https://www.khoa.go.kr/oceanmap/BASEMAP_ENC573857/wmsVecto
 /** 이상 구간 전용 마젠타(--color-alert). 해도 관례색이라 다른 용도로 쓰지 않는다. */
 const ALERT_COLOR = '#ff3d9a';
 
+/**
+ * 타선/예인선 전용 파란색. 마커·전체 항적·지나온 항적에 전부 이 색 하나로 통일해서 쓴다.
+ * KHOA 해도 배경(연한 크림/황토색)과 색조가 겹치지 않도록 차가운 색 — 원래 호박색이었을 때는
+ * 배경과 같은 난색 계열이라 잘 안 보였음.
+ */
+const TARGET_COLOR = '#4d8dff';
+
 const VESSEL_SVG = `
 <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
   <path d="M12 1.5 L19.5 21.5 L12 17.2 L4.5 21.5 Z"
         fill="#35e0c4" stroke="#071119" stroke-width="1.2" stroke-linejoin="round" />
 </svg>`;
 
-/**
- * 타선/예인선 마커. 자선(청록)보다 작게 그려 시선이 자선에 먼저 가게 하되,
- * KHOA 해도 배경(연한 크림/황토색)과 색조가 겹치지 않도록 차가운 파란색을 쓴다.
- * 호박색이었을 때는 배경과 같은 난색 계열이라 잘 안 보였음.
- */
+/** 타선/예인선 마커. 자선(청록)보다 작게 그려 시선이 자선에 먼저 가게 한다. */
 const TARGET_SVG = `
 <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
   <path d="M12 1.5 L19.5 21.5 L12 17.2 L4.5 21.5 Z"
-        fill="#4d8dff" stroke="#071119" stroke-width="1.4" stroke-linejoin="round" />
+        fill="${TARGET_COLOR}" stroke="#071119" stroke-width="1.4" stroke-linejoin="round" />
 </svg>`;
 
 const toLatLng = (point: TrackPoint): L.LatLngTuple => [point.lat, point.lon];
@@ -247,12 +250,12 @@ export function MapView() {
         if (!entry) {
           // 옅은 전체 항적(자선과 같은 패턴) → 지나온 항적 → 마커 순으로 쌓는다.
           const full = L.polyline(ship.points.map(toLatLng), {
-            color: '#ffb238',
+            color: TARGET_COLOR,
             weight: 1,
             opacity: showFullTrackRef.current ? 0.22 : 0,
           }).addTo(layer);
           const traveled = L.polyline([], {
-            color: '#ffb238',
+            color: TARGET_COLOR,
             weight: 1.8,
             opacity: 0.85,
           }).addTo(layer);
