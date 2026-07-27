@@ -25,11 +25,15 @@ const VESSEL_SVG = `
         fill="#35e0c4" stroke="#071119" stroke-width="1.2" stroke-linejoin="round" />
 </svg>`;
 
-/** 타선/예인선 마커. 자선(청록)과 구분되는 호박색. 자선보다 작게 그려 시선이 자선에 먼저 가게 한다. */
+/**
+ * 타선/예인선 마커. 자선(청록)보다 작게 그려 시선이 자선에 먼저 가게 하되,
+ * KHOA 해도 배경(연한 크림/황토색)과 색조가 겹치지 않도록 차가운 파란색을 쓴다.
+ * 호박색이었을 때는 배경과 같은 난색 계열이라 잘 안 보였음.
+ */
 const TARGET_SVG = `
-<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
   <path d="M12 1.5 L19.5 21.5 L12 17.2 L4.5 21.5 Z"
-        fill="#ffb238" stroke="#071119" stroke-width="1.2" stroke-linejoin="round" />
+        fill="#4d8dff" stroke="#071119" stroke-width="1.4" stroke-linejoin="round" />
 </svg>`;
 
 const toLatLng = (point: TrackPoint): L.LatLngTuple => [point.lat, point.lon];
@@ -256,8 +260,8 @@ export function MapView() {
             icon: L.divIcon({
               className: 'target-marker',
               html: `<div class="vessel-rot">${TARGET_SVG}</div>`,
-              iconSize: [18, 18],
-              iconAnchor: [9, 9],
+              iconSize: [22, 22],
+              iconAnchor: [11, 11],
             }),
             // 이름 툴팁이 호버로 뜨려면 상호작용 가능해야 한다(자선 마커와 달리).
             interactive: true,
