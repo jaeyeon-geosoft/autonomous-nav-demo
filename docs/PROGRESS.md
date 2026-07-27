@@ -10,7 +10,7 @@
 
 - **단계**: 구현 순서 1~7번 + KHOA 전자해도 배경 완료 + **STR 데이터셋 대응(1차) 완료** +
   **다중 선박(traffic_N) 지원 완료** + **타선 꼬리선(전체/지나온 항적) 완료**.
-  전부 `feat/str-dataset-fields` 브랜치. 다중선박은 커밋(`fd6c9f3`), 꼬리선은 아직 커밋 전.
+  전부 `feat/str-dataset-fields` 브랜치에 커밋 끝(`8f0aad1`→`fd6c9f3`→`4ba5ea5`), `dev` 미머지.
   분석가가 준 `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전) 기반. 브라우저 확인 끝.
 - **마지막으로 건드린 파일**: `src/data/interpolate.ts`(TargetState.index 추가), `src/components/MapView.tsx`
   (타선 full/traveled 폴리라인)
@@ -125,9 +125,6 @@ ID 컬럼으로 여러 척이 한 파일에 섞여 있는 구조. 자선(`TrackP
     - 실제 데이터 파일은 아직 없음. 분석가가 `str 데이터 분석.xlsx`(컬럼 사전)만 줬고,
       이걸로 매핑/필드를 선반영함(위 "STR 데이터셋 대응" 참고). **실제 CSV가 오면 컬럼명이
       문서와 정확히 일치하는지 재확인 필요** → 다르면 CLAUDE.md 데이터 모델 + SPEC.md 갱신
-    - 디자인 방향: 우선 알아서 깔끔하게, 이후 다듬기.
-      현재 App.tsx는 2번 확인용 임시 화면이며 4~6번에서 교체 예정
-      (그때 SPEC의 `public/예시 디자인 *.png` + frontend-design skill 적용)
     - **git remote 없음** → push 불가. 집/회사 동기화가 아직 안 됨. 주소 확정 후 연결 필요
     - **인코딩**: 현재 UTF-8로만 읽음. 분석가가 EUC-KR CSV를 주면 한글 헤더(위도/경도)가
       깨져서 매핑 실패함. 실제 데이터 받고 나서 필요하면 대응
