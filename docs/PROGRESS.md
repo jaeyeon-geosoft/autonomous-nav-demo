@@ -9,13 +9,27 @@
 ## 현재 상태 (최신)
 
 - **단계**: 구현 순서 1~7번 + KHOA 전자해도 배경 완료 + **STR 데이터셋 대응(1차) 완료** +
-  **다중 선박(traffic_N) 지원 완료**. 1차는 `feat/str-dataset-fields` 브랜치에 커밋(미머지).
-  다중 선박은 같은 브랜치 위에서 이어서 작업, 아직 커밋 전. 분석가가 준
-  `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전) 기반. 브라우저 확인 끝.
-- **마지막으로 건드린 파일**: `src/data/types.ts`(TargetPoint/TargetShip), `src/data/trafficMapping.ts`(신규),
-  `src/data/parseTraffic.ts`(신규), `src/data/mockTargets.ts`(신규), `src/data/interpolate.ts`
-  (interpolateTargetAt), `src/playback/playbackStore.ts`(targets), `src/components/MapView.tsx`,
-  `src/components/TrafficLoader.tsx`(신규), `src/App.tsx`
+  **다중 선박(traffic_N) 지원 완료** + **타선 꼬리선(전체/지나온 항적) 완료**.
+  전부 `feat/str-dataset-fields` 브랜치. 다중선박은 커밋(`fd6c9f3`), 꼬리선은 아직 커밋 전.
+  분석가가 준 `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전) 기반. 브라우저 확인 끝.
+- **마지막으로 건드린 파일**: `src/data/interpolate.ts`(TargetState.index 추가), `src/components/MapView.tsx`
+  (타선 full/traveled 폴리라인)
+
+### 타선 꼬리선(전체/지나온 항적) — 완료
+
+다듬기 항목 3개(이슈 목록 가상화/품질 임계값 조정/타선 꼬리선) 중 근거가 명확한 이것만 선택해서 진행.
+나머지 둘은 실제 데이터 없이는 추측성 작업이라 보류.
+
+- `interpolate.ts`: `TargetState`에 `index` 추가(자선의 `TrackState.index`와 같은 용도 — 꼬리선을
+  어디까지 그릴지 판단)
+- `MapView.tsx`: 타선마다 `{ marker, full, traveled }` 세 개를 한 세트로 관리(기존엔 마커만).
+  자선과 같은 시각 언어(호박색, 옅은 전체경로 → 진한 지나온경로) 대신 자선보다 얇게(`weight: 1`/`1.8`
+  vs 자선 `1.5`/`2.5`) 그려서 위계 유지. "전체 항적 미리보기" 토글도 타선에 같이 적용
+  - **주의**: 토글 값을 프레임 구독 콜백 안에서 읽어야 해서(마커 쪽과 같은 이유로 리렌더 회피) `showFullTrackRef`로
+    최신값을 유지. 새 타선이 재생 중간에 처음 나타날 때도 이 ref로 현재 토글 상태를 반영해 생성
+- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 mock 근접상황 구간 확대 →
+  자선 항적을 가로지르는 호박색 타선 궤적 확인, 토글 끄면 타선의 옅은 전체경로도 같이 사라지고
+  지나온 부분(진한 선)은 남는 것까지 확인
 
 ### 다중 선박(traffic_N) 지원 — 완료
 
@@ -93,8 +107,9 @@ ID 컬럼으로 여러 척이 한 파일에 섞여 있는 구조. 자선(`TrackP
 ### 그다음(원래 남은 것)
 
 - **실제 STR CSV를 받으면**: 문서 기반으로 추가한 `FIELD_ALIASES`/`TRAFFIC_ALIASES` 리터럴이 실제 헤더와
-  정확히 일치하는지 확인(대소문자·공백 표기가 문서와 다를 수 있음). EUC-KR 대응도 그때
-- 다듬기(선택): 이슈 목록 가상화, 품질 임계값(`MAX_SPEED_KNOTS` 등) 조정, 타선 전체 항적(꼬리) 표시 여부
+  정확히 일치하는지 확인(대소문자·공백 표기가 문서와 다를 수 있음). EUC-KR 대응도 그때. 품질 임계값
+  (`MAX_SPEED_KNOTS`/`GAP_FACTOR` 등)도 실 데이터 보고 나서 맞는지 재검토 — 지금은 감으로 바꿀 근거가 없어 보류
+- 다듬기(선택, 보류): 이슈 목록 가상화(이슈 수천 건 이상일 때만 의미 있음, 아직 그 정도 데이터 없음)
 
 색: 마젠타(`--color-alert: #ff3d9a`)는 이상 구간 전용으로 예약. 다른 용도로 쓰지 말 것.
 

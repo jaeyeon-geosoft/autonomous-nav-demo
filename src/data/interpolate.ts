@@ -180,6 +180,8 @@ export interface TargetState {
   lon: number;
   heading: number;
   tugEnable?: boolean;
+  /** 커서가 속한 구간의 시작 포인트 인덱스. 꼬리선(지나온 항적) 그리는 데 씀. */
+  index: number;
 }
 
 /**
@@ -205,6 +207,7 @@ export function interpolateTargetAt(points: TargetPoint[], timestamp: number): T
       lon: from.lon,
       heading: from.yaw ?? (previous ? bearing(previous, from) : 0),
       tugEnable: from.tugEnable,
+      index,
     };
   }
 
@@ -219,5 +222,6 @@ export function interpolateTargetAt(points: TargetPoint[], timestamp: number): T
         ? lerpAngle(from.yaw, to.yaw ?? from.yaw, ratio)
         : bearing(from, to),
     tugEnable: from.tugEnable,
+    index,
   };
 }

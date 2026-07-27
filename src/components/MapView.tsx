@@ -52,12 +52,16 @@ export function MapView() {
   const vesselRef = useRef<L.Marker | null>(null);
   const alertRef = useRef<L.LayerGroup | null>(null);
   const targetLayerRef = useRef<L.LayerGroup | null>(null);
-  const targetMarkersRef = useRef(new Map<string, L.Marker>());
+  const targetEntriesRef = useRef(
+    new Map<string, { marker: L.Marker; full: L.Polyline; traveled: L.Polyline }>(),
+  );
 
   const points = usePlaybackStore((state) => state.points);
   const issues = usePlaybackStore((state) => state.issues);
   const targets = usePlaybackStore((state) => state.targets);
   const [showFullTrack, setShowFullTrack] = useState(true);
+  // 프레임 구독 콜백(아래)이 리렌더 없이 최신 토글값을 읽기 위한 ref.
+  const showFullTrackRef = useRef(showFullTrack);
 
   // 지도는 한 번만 만든다.
   useEffect(() => {
@@ -163,7 +167,11 @@ export function MapView() {
   }, [points]);
 
   useEffect(() => {
+    showFullTrackRef.current = showFullTrack;
     fullTrackRef.current?.setStyle({ opacity: showFullTrack ? 0.28 : 0 });
+    for (const entry of targetEntriesRef.current.values()) {
+      entry.full.setStyle({ opacity: showFullTrack ? 0.22 : 0 });
+    }
   }, [showFullTrack]);
 
   // 이상 구간을 마젠타로 덧그린다. jump는 튄 구간(선), 나머지는 해당 지점(원).
@@ -220,10 +228,10 @@ export function MapView() {
         ]);
       }
 
-      // 타선 마커: 이 시각에 데이터 구간 안에 있는 배만 만들고, 벗어난 배는 지운다.
+      // 타선 마커+꼬리선: 이 시각에 데이터 구간 안에 있는 배만 만들고, 벗어난 배는 지운다.
       const layer = targetLayerRef.current;
       if (!layer) return;
-      const markers = targetMarkersRef.current;
+      const entries = targetEntriesRef.current;
       const seen = new Set<string>();
 
       for (const ship of state.targets) {
@@ -231,9 +239,20 @@ export function MapView() {
         if (!targetState) continue;
         seen.add(ship.id);
 
-        let marker = markers.get(ship.id);
-        if (!marker) {
-          marker = L.marker([targetState.lat, targetState.lon], {
+        let entry = entries.get(ship.id);
+        if (!entry) {
+          // 옅은 전체 항적(자선과 같은 패턴) → 지나온 항적 → 마커 순으로 쌓는다.
+          const full = L.polyline(ship.points.map(toLatLng), {
+            color: '#ffb238',
+            weight: 1,
+            opacity: showFullTrackRef.current ? 0.22 : 0,
+          }).addTo(layer);
+          const traveled = L.polyline([], {
+            color: '#ffb238',
+            weight: 1.8,
+            opacity: 0.85,
+          }).addTo(layer);
+          const marker = L.marker([targetState.lat, targetState.lon], {
             icon: L.divIcon({
               className: 'target-marker',
               html: `<div class="vessel-rot">${TARGET_SVG}</div>`,
@@ -245,18 +264,26 @@ export function MapView() {
             keyboard: false,
           }).addTo(layer);
           if (ship.name) marker.bindTooltip(ship.name, { direction: 'top', offset: [0, -10] });
-          markers.set(ship.id, marker);
+          entry = { marker, full, traveled };
+          entries.set(ship.id, entry);
         }
 
-        marker.setLatLng([targetState.lat, targetState.lon]);
-        const element = marker.getElement()?.querySelector<HTMLElement>('.vessel-rot');
+        entry.marker.setLatLng([targetState.lat, targetState.lon]);
+        const element = entry.marker.getElement()?.querySelector<HTMLElement>('.vessel-rot');
         if (element) element.style.transform = `rotate(${targetState.heading}deg)`;
+
+        entry.traveled.setLatLngs([
+          ...ship.points.slice(0, targetState.index + 1).map(toLatLng),
+          [targetState.lat, targetState.lon] as L.LatLngTuple,
+        ]);
       }
 
-      for (const [id, marker] of markers) {
+      for (const [id, entry] of entries) {
         if (!seen.has(id)) {
-          layer.removeLayer(marker);
-          markers.delete(id);
+          layer.removeLayer(entry.marker);
+          layer.removeLayer(entry.full);
+          layer.removeLayer(entry.traveled);
+          entries.delete(id);
         }
       }
     };
