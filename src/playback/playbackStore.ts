@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
-import type { TrackPoint } from '../data/types';
-import { interpolateAt, type TrackState } from '../data/interpolate';
+import type { TrackPoint, TargetShip } from '../data/types';
+import { interpolateAt, interpolateTargetAt, type TrackState, type TargetState } from '../data/interpolate';
 import { findIssues, type Issue } from '../data/quality';
 
 export const SPEEDS = [1, 5, 10] as const;
@@ -11,12 +11,15 @@ interface PlaybackStore {
   points: TrackPoint[];
   /** 로드 시 스캔한 데이터 품질 이상 목록. points가 바뀔 때만 갱신된다. */
   issues: Issue[];
+  /** 주변 타선/예인선(traffic_숫자). 자선과 별개로 불러온다. */
+  targets: TargetShip[];
   /** 재생 커서. 항상 유닉스 ms(데이터의 실제 시각). */
   cursor: number;
   playing: boolean;
   speed: Speed;
 
   setPoints: (points: TrackPoint[]) => void;
+  setTargets: (targets: TargetShip[]) => void;
   play: () => void;
   pause: () => void;
   togglePlay: () => void;
@@ -33,12 +36,15 @@ const lastTime = (points: TrackPoint[]) => points[points.length - 1]?.timestamp 
 export const usePlaybackStore = create<PlaybackStore>((set, get) => ({
   points: [],
   issues: [],
+  targets: [],
   cursor: 0,
   playing: false,
   speed: 1,
 
   setPoints: (points) =>
     set({ points, issues: findIssues(points), cursor: firstTime(points), playing: false }),
+
+  setTargets: (targets) => set({ targets }),
 
   play: () => {
     const { points, cursor } = get();
@@ -88,4 +94,24 @@ export function useCurrentState(): TrackState | null {
   const points = usePlaybackStore((state) => state.points);
   const cursor = usePlaybackStore((state) => state.cursor);
   return useMemo(() => interpolateAt(points, cursor), [points, cursor]);
+}
+
+export interface CurrentTarget extends TargetState {
+  id: string;
+  name?: string;
+  shipType?: string;
+}
+
+/** 현재 커서 시각에 존재하는 타선만 골라서 상태를 낸다(같은 이유로 useMemo). */
+export function useCurrentTargets(): CurrentTarget[] {
+  const targets = usePlaybackStore((state) => state.targets);
+  const cursor = usePlaybackStore((state) => state.cursor);
+  return useMemo(() => {
+    const result: CurrentTarget[] = [];
+    for (const ship of targets) {
+      const state = interpolateTargetAt(ship.points, cursor);
+      if (state) result.push({ id: ship.id, name: ship.name, shipType: ship.shipType, ...state });
+    }
+    return result;
+  }, [targets, cursor]);
 }

@@ -8,10 +8,91 @@
 
 ## 현재 상태 (최신)
 
-- **단계**: 구현 순서 1~7번 완료 + **KHOA 전자해도 배경 연동 완료**(main 머지).
-  전자해도 배경 위에 항적/마커/이상표시가 뜨는 것까지 브라우저 확인 끝. 오버레이는 보류(아래 사유).
-- **마지막으로 건드린 파일**: `src/components/MapView.tsx`(전자해도 WMS 배경), `.env.local`(키, git 제외),
-  `.env.example`
+- **단계**: 구현 순서 1~7번 + KHOA 전자해도 배경 완료 + **STR 데이터셋 대응(1차) 완료** +
+  **다중 선박(traffic_N) 지원 완료** + **타선 꼬리선(전체/지나온 항적) 완료**.
+  전부 `feat/str-dataset-fields` 브랜치에 커밋 끝(`8f0aad1`→`fd6c9f3`→`4ba5ea5`), `dev` 미머지.
+  분석가가 준 `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전) 기반. 브라우저 확인 끝.
+- **마지막으로 건드린 파일**: `src/data/interpolate.ts`(TargetState.index 추가), `src/components/MapView.tsx`
+  (타선 full/traveled 폴리라인)
+
+### 타선 꼬리선(전체/지나온 항적) — 완료
+
+다듬기 항목 3개(이슈 목록 가상화/품질 임계값 조정/타선 꼬리선) 중 근거가 명확한 이것만 선택해서 진행.
+나머지 둘은 실제 데이터 없이는 추측성 작업이라 보류.
+
+- `interpolate.ts`: `TargetState`에 `index` 추가(자선의 `TrackState.index`와 같은 용도 — 꼬리선을
+  어디까지 그릴지 판단)
+- `MapView.tsx`: 타선마다 `{ marker, full, traveled }` 세 개를 한 세트로 관리(기존엔 마커만).
+  자선과 같은 시각 언어(호박색, 옅은 전체경로 → 진한 지나온경로) 대신 자선보다 얇게(`weight: 1`/`1.8`
+  vs 자선 `1.5`/`2.5`) 그려서 위계 유지. "전체 항적 미리보기" 토글도 타선에 같이 적용
+  - **주의**: 토글 값을 프레임 구독 콜백 안에서 읽어야 해서(마커 쪽과 같은 이유로 리렌더 회피) `showFullTrackRef`로
+    최신값을 유지. 새 타선이 재생 중간에 처음 나타날 때도 이 ref로 현재 토글 상태를 반영해 생성
+- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 mock 근접상황 구간 확대 →
+  자선 항적을 가로지르는 호박색 타선 궤적 확인, 토글 끄면 타선의 옅은 전체경로도 같이 사라지고
+  지나온 부분(진한 선)은 남는 것까지 확인
+
+### 다중 선박(traffic_N) 지원 — 완료
+
+`str 데이터 분석.xlsx`가 요청한 4번째 항목. `traffic_숫자` 테이블(주변 타선 + 예인선)은 InstData와 별개 파일이고
+ID 컬럼으로 여러 척이 한 파일에 섞여 있는 구조. 자선(`TrackPoint`)과는 별개 모델로 분리해서 구현.
+
+- `types.ts`: `TargetPoint`(한 시점 상태: lat/lon/yaw/turningRate/tugEnable) + `TargetShip`(id/name/
+  shipType/length/beam + points). **결정**: `TrackPoint`를 재사용하지 않고 별도 타입으로 뺌 — TrackPoint는
+  CLAUDE.md가 "자선 표준 모델"로 정의해둔 계약이라, 타선 전용 필드(tugEnable 등)를 얹으면 그 계약이 흐려짐
+- `trafficMapping.ts`(신규) + `parseTraffic.ts`(신규): `mapping.ts`와 같은 패턴(별칭 테이블 + 헤더 정규화)이지만
+  ID 컬럼으로 행을 선박별로 그룹핑하는 점이 다름. `normalizeHeader`/`parseNumber`/`parseTimestamp`는
+  `mapping.ts`에서 export해 재사용(중복 안 함)
+- `interpolate.ts`: `interpolateTargetAt()` 신규 — 자선의 `interpolateAt()`과 달리 **클램프하지 않고
+  범위 밖이면 null**을 반환. 시나리오 중간에 등장/퇴장하는 배를 표현하려면 이게 맞음(자선은 등장/퇴장이
+  없어서 클램프가 맞았던 것)
+- `playbackStore.ts`: `targets`/`setTargets` 추가. `useCurrentTargets()` 훅도 추가했지만 **MapView에서는 안 씀**
+  — 커서가 매 프레임 바뀌는데 훅으로 구독하면 리렌더가 돎(기존 자선 마커와 같은 이유로 회피)
+- `MapView.tsx`: 기존 "스토어 직접 구독" 갱신 함수를 확장해 타선 마커(Map<id, L.Marker>)를 매 프레임
+  생성/갱신/제거. **버그 하나 잡음**: 처음엔 자선 마커처럼 `interactive: false`로 만들었더니 `bindTooltip`
+  호버가 아예 안 뜸(상호작용 꺼지면 마우스 이벤트 자체가 안 걸림) → 타선 마커만 `interactive: true`로 수정
+  - **동기화 순서 주의**: 타선 목록을 ref에 캐시해 읽으면 안 됨 — `setTargets` 직후 이 구독 콜백이 React
+    렌더보다 먼저 동기 실행돼 구 목록을 보게 됨. `usePlaybackStore.subscribe(update)`의 `state` 인자에서
+    직접 읽어야 항상 최신
+  - 자선 마커에 `zIndexOffset: 1000` 추가 — 둘 다 같은 markerPane이라, 안 하면 타선이 자선을 가릴 수 있음
+- `TrafficLoader.tsx`(신규): `FileLoader`의 compact 변형과 같은 패턴. 헤더에 "타선 데이터" 버튼.
+  자선 항적이 새로 로드되면(`load()`) 이전 타선은 `setTargets([])`로 같이 리셋(다른 시나리오라 안 맞음)
+- `mockTargets.ts`(신규): `generateMockTrack()`의 근접상황 구간(40~55%)에 맞춰 배 1척이 자선 항로를
+  가로질러 지나가게(등장→근접→퇴장) 만든 mock. "예시 항적" 버튼 누르면 자동으로 같이 뜸
+- 지도 배지: 우상단에 "타선 N척 로드됨" 표시(전체 로드 수, 현재 화면에 보이는 수 아님 — 프레임마다
+  안 바뀌어야 리렌더가 안 도므로 일부러 필터링 안 함)
+- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 (1) mock 항적 → 근접상황 구간에서만 호박색
+  타선 마커 등장, 구간 밖에서는 사라짐, 호버 시 "DEMO TARGET" 툴팁 확인. (2) 문서의 실제 traffic 컬럼명
+  (`ID`, `ShipName`, `Latitude[deg]`, `Yaw[deg]`, `TugEnable` 등)으로 만든 2척(어선/예인선) 샘플 CSV를
+  자선 CSV와 함께 업로드 → "타선 2척 로드됨" + 지도에 두 마커가 각자 방향으로 정확히 뜨는 것 확인
+
+### STR 데이터셋 대응(1차) — 완료
+
+`str 데이터 분석.xlsx`는 "FWHanban STR" 시뮬레이션 데이터셋(InstData/traffic_N/Command/Environ/Ownship 5개 테이블)의
+**컬럼 사전**(실제 CSV 아님). InstData 한 행 안에 위치+환경+제어+자율안전 정보가 다 있어서 기존 단일 항적
+구조에 그대로 편입 가능한 부분만 이번에 반영. 다중 선박(traffic_N)은 별도 모델이라 위 항목으로 분리.
+
+- `types.ts`: `TrackPoint`에 `risk/avoidFlag/accident`(자율·안전), `windSpeed/windDir/waveHeight/waveDir/
+  currentSpeed/currentDir`(해상외란), `rudderCmd/rudderActual/engineCmd/engineActual`(제어 명령 vs 실제) 추가
+- `mapping.ts`: `FIELD_ALIASES`에 문서에 나온 실제 컬럼명을 리터럴로 등록
+  (`Latitude[deg]`, `GyroHeading[deg]`, `TurningRate[deg/s]`, `Time(sec)`, `Wind(m/sec)` 등).
+  **결정**: 대괄호/소괄호를 정규식으로 벗기는 범용 방식은 안 씀 — Environ 테이블의 `Wind(m/sec)`/`Wind(deg)`처럼
+  같은 베이스명에 단위만 다른 컬럼이 있어서, 벗기면 정규화 후 문자열이 충돌해 한쪽 데이터가 유실됨.
+  그래서 원본 표기를 그대로 살린 리터럴 별칭을 추가하는 쪽으로 감
+  - 다축 타/엔진(P/S/C)은 대표값 하나로 축약: Center 우선, 없으면 Port(`rudderCmd`/`rudderActual`/`engineCmd`/
+    `engineActual`). InstData에 C가 없는 2축 선박(Command 테이블 등)은 자동으로 Port 값을 씀
+  - `AutoCourse[deg]`(자율운항의 목표 침로)는 `cog`(실제 대지침로)에 매핑하지 않음 — 의미가 다른 값이라
+    섣불리 합치면 잘못된 정보가 됨. 필요해지면 별도 필드로
+- `quality.ts`/`IssueList.tsx`: `accident`/`avoid`를 기존 `IssueKind`에 추가해 재사용
+  (사고·회피 지점도 "클릭하면 그 시점으로 이동"이 그대로 필요해서). `MapView.tsx`는 무수정 —
+  이슈 마커 루프가 kind를 안 가리고 범용으로 동작해서 자동으로 지도에 뜸.
+  패널 라벨은 "데이터 품질" → "품질 · 이벤트"로(사고/회피는 데이터 결함이 아니라 시뮬레이션 이벤트라서)
+- `StatusPanel.tsx`: Risk 리드아웃 + Accident/AvoidFlag 뱃지 + "해상 외란"/"타·엔진" 섹션.
+  두 섹션은 데이터셋에 해당 필드가 하나도 없으면 통째로 숨김(대부분의 CSV는 이 필드가 없으므로)
+- `mockTrack.ts`: 새 필드 데모용 값 추가(진행 40~55% 구간에 위험도 상승 + AvoidFlag 근접상황 흉내).
+  **accident는 mock에서 항상 false** — 결정론적 예시 항적이 "사고"로 보이면 다른 사람에게 보여줄 때 오해 소지
+- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 (1) mock 항적 → Risk/외란/제어 값,
+  AvoidFlag 구간의 지도 마젠타 마커·이슈 목록·상태 뱃지 확인, (2) 문서의 실제 컬럼명(`Latitude[deg]` 등)으로
+  만든 5행 샘플 CSV 업로드 → 위경도/HDG/Risk/외란/제어 전부 정확히 매핑되는 것 확인
 
 ### KHOA 전자해도 배경 — 완료
 
@@ -25,8 +106,10 @@
 
 ### 그다음(원래 남은 것)
 
-- **실제 데이터 확정 시**: `src/data/mapping.ts`의 `FIELD_ALIASES`와 CLAUDE.md/SPEC.md 갱신. EUC-KR 대응
-- 다듬기(선택): 이슈 목록 가상화, 품질 임계값(`MAX_SPEED_KNOTS` 등) 조정
+- **실제 STR CSV를 받으면**: 문서 기반으로 추가한 `FIELD_ALIASES`/`TRAFFIC_ALIASES` 리터럴이 실제 헤더와
+  정확히 일치하는지 확인(대소문자·공백 표기가 문서와 다를 수 있음). EUC-KR 대응도 그때. 품질 임계값
+  (`MAX_SPEED_KNOTS`/`GAP_FACTOR` 등)도 실 데이터 보고 나서 맞는지 재검토 — 지금은 감으로 바꿀 근거가 없어 보류
+- 다듬기(선택, 보류): 이슈 목록 가상화(이슈 수천 건 이상일 때만 의미 있음, 아직 그 정도 데이터 없음)
 
 색: 마젠타(`--color-alert: #ff3d9a`)는 이상 구간 전용으로 예약. 다른 용도로 쓰지 말 것.
 
@@ -39,11 +122,9 @@
   7번은 확장 연결 상태로, dev 서버 → `sample-anomalies.csv` 업로드 → 이슈 7건이
   지도/리본/목록에 뜨는 것까지 스크린샷으로 확인함
 - **미해결/대기**:
-    - 실제 데이터 형식 미확정 (분석가가 나중에 CSV 제공 예정) → 확정되면
-      CLAUDE.md 데이터 모델 + SPEC.md 컬럼 매핑 갱신
-    - 디자인 방향: 우선 알아서 깔끔하게, 이후 다듬기.
-      현재 App.tsx는 2번 확인용 임시 화면이며 4~6번에서 교체 예정
-      (그때 SPEC의 `public/예시 디자인 *.png` + frontend-design skill 적용)
+    - 실제 데이터 파일은 아직 없음. 분석가가 `str 데이터 분석.xlsx`(컬럼 사전)만 줬고,
+      이걸로 매핑/필드를 선반영함(위 "STR 데이터셋 대응" 참고). **실제 CSV가 오면 컬럼명이
+      문서와 정확히 일치하는지 재확인 필요** → 다르면 CLAUDE.md 데이터 모델 + SPEC.md 갱신
     - **git remote 없음** → push 불가. 집/회사 동기화가 아직 안 됨. 주소 확정 후 연결 필요
     - **인코딩**: 현재 UTF-8로만 읽음. 분석가가 EUC-KR CSV를 주면 한글 헤더(위도/경도)가
       깨져서 매핑 실패함. 실제 데이터 받고 나서 필요하면 대응

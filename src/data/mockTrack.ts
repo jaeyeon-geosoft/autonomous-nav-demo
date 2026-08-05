@@ -47,6 +47,15 @@ export function generateMockTrack(options: MockTrackOptions = {}): TrackPoint[] 
     const cog = normalizeAngle(45 + 35 * Math.sin(turnPhase));
     // 선수방위는 침로보다 약간 앞서 돈다(표류각).
     const hdg = normalizeAngle(cog + 2.5 * Math.cos(turnPhase));
+    // 타각은 S자 선회 방향을 따라간다. 명령은 실제보다 살짝 앞서 반응한다.
+    const rudderCmd = 12 * Math.cos(turnPhase);
+    const rudderActual = 12 * Math.cos(turnPhase - 0.15);
+    // 진행 구간 40~55%에서 잠깐 근접상황(위험도 상승 + 회피 동작)을 흉내낸다.
+    const nearMissPhase = elapsedSec / (count * intervalSec);
+    const inNearMiss = nearMissPhase > 0.4 && nearMissPhase < 0.55;
+    const risk = inNearMiss
+      ? 0.55 + 0.4 * Math.sin(((nearMissPhase - 0.4) / 0.15) * Math.PI)
+      : 0.1 + 0.05 * Math.sin(turnPhase / 3);
 
     points.push({
       timestamp: startTime + i * intervalSec * 1000,
@@ -55,6 +64,18 @@ export function generateMockTrack(options: MockTrackOptions = {}): TrackPoint[] 
       sog: Number(sog.toFixed(1)),
       cog: Number(cog.toFixed(1)),
       hdg: Number(hdg.toFixed(1)),
+      risk: Number(risk.toFixed(2)),
+      avoidFlag: inNearMiss,
+      windSpeed: Number((6 + 1.5 * Math.sin(turnPhase / 4)).toFixed(1)),
+      windDir: normalizeAngle(200 + 10 * Math.sin(turnPhase / 5)),
+      waveHeight: Number((0.8 + 0.2 * Math.sin(turnPhase / 3)).toFixed(1)),
+      waveDir: normalizeAngle(210 + 8 * Math.cos(turnPhase / 5)),
+      currentSpeed: Number((0.4 + 0.1 * Math.cos(turnPhase / 6)).toFixed(2)),
+      currentDir: normalizeAngle(30 + 15 * Math.sin(turnPhase / 7)),
+      rudderCmd: Number(rudderCmd.toFixed(1)),
+      rudderActual: Number(rudderActual.toFixed(1)),
+      engineCmd: Number((sog * 8).toFixed(0)),
+      engineActual: Number((sog * 8 * 0.97).toFixed(0)),
     });
 
     // 이번 구간의 속력·침로로 다음 위치를 적분.
