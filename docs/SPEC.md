@@ -58,7 +58,8 @@ hdg      ← hdg, heading, true_heading, 선수방위
 
 ## 지도 & 애니메이션
 
-- Leaflet 베이스맵 + OpenSeaMap seamark 타일 오버레이.
+- Leaflet 베이스맵. `VITE_KHOA_KEY`가 있으면 KHOA 개방海 전자해도 WMS를 배경으로 쓰고,
+  없으면 CARTO + OpenSeaMap seamark 오버레이로 폴백(설정은 `README.md` 참조).
     - seamark 타일 URL: `https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png`
 - 선박 마커: heading(없으면 cog, 그것도 없으면 진행 방향) 방향으로
   회전하는 삼각형/선박 아이콘. 재생에 따라 부드럽게 이동.
@@ -89,14 +90,34 @@ hdg      ← hdg, heading, true_heading, 선수방위
 
 각 이슈는 목록으로 보여주고, 클릭하면 해당 시점으로 재생 커서 이동.
 
-## 구현 순서
+## STR 데이터셋 대응 (구현 완료)
 
-1. TrackPoint 모델 + 컬럼 매핑 레이어 + `generateMockTrack()`
-2. CSV 로드/파싱 → TrackPoint[] 변환
-3. 재생 엔진(스토어: 커서, 재생상태, 배속) + 보간 로직
-4. 지도 컴포넌트(베이스맵 + seamark, 마커 회전/이동, 항적 polyline, fitBounds)
-5. 재생 컨트롤 바
-6. 현재 상태 정보 패널
-7. 데이터 품질 검증 + 이슈 목록/하이라이트
+분석가가 준 STR 시뮬레이터 컬럼 사전 기준. 실 데이터는 아직 없음.
+
+- `Time[s]` · `Latitude[deg]` · `GyroHeading[deg]` 같은 실제 컬럼명을 별칭 테이블에 추가.
+- 다축(중앙 C / 좌현 P / 우현 S) 타·엔진 컬럼은 **C 우선, 없으면 P**를 대표값으로.
+- 위험도(`Risk`) / 회피(`AvoidFlag`) / 사고(`Accident`)는 상태 패널 뱃지 + 이슈 목록에 표시.
+- 해상 외란(바람·파도·조류)과 타/엔진 명령 vs 실제는 상태 패널에 **해당 컬럼이 있을 때만**
+  섹션이 나타나게.
+
+## 타선/예인선 (구현 완료)
+
+`traffic_N` 테이블은 자선 데이터와 **별개 파일**이고, ID 컬럼으로 여러 척이 한 파일에 섞여 있다.
+
+- 자선(`TrackPoint`)과 별도 모델(`TargetShip`)로 분리. 로드도 별도 버튼.
+- 커서가 그 선박의 데이터 구간 밖이면 화면에서 **사라진다**(자선처럼 클램프하지 않음).
+  시나리오 중간에 등장/퇴장하는 배를 그대로 표현하기 위함.
+- 자선 항적을 새로 로드하면 이전 타선 데이터는 리셋(다른 시나리오이므로).
+
+## 구현 순서 (1~7 완료)
+
+1. ✅ TrackPoint 모델 + 컬럼 매핑 레이어 + `generateMockTrack()`
+2. ✅ CSV 로드/파싱 → TrackPoint[] 변환
+3. ✅ 재생 엔진(스토어: 커서, 재생상태, 배속) + 보간 로직
+4. ✅ 지도 컴포넌트(베이스맵 + seamark, 마커 회전/이동, 항적 polyline, fitBounds)
+5. ✅ 재생 컨트롤 바
+6. ✅ 현재 상태 정보 패널
+7. ✅ 데이터 품질 검증 + 이슈 목록/하이라이트
 
 각 단계는 mock 데이터로 바로 눈으로 확인하면서 진행.
+이후 진행 상황은 `docs/PROGRESS.md` 참조.

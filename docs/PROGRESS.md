@@ -10,10 +10,10 @@
 
 - **단계**: 구현 순서 1~7번 + KHOA 전자해도 배경 완료 + **STR 데이터셋 대응(1차) 완료** +
   **다중 선박(traffic_N) 지원 완료** + **타선 꼬리선(전체/지나온 항적) 완료**.
-  전부 `feat/str-dataset-fields` 브랜치에 커밋 끝(`8f0aad1`→`fd6c9f3`→`4ba5ea5`), `dev` 미머지.
+  전부 PR #1로 **`dev` 머지 완료**(`78f5fd9`). 작업 브랜치(`feat/str-dataset-fields`,
+  `feat/khoa-haeareum-map`)는 로컬·원격 모두 삭제함. `main`은 `dev`보다 7커밋 뒤.
   분석가가 준 `str 데이터 분석.xlsx`(실 데이터 아님, 컬럼 사전) 기반. 브라우저 확인 끝.
-- **마지막으로 건드린 파일**: `src/data/interpolate.ts`(TargetState.index 추가), `src/components/MapView.tsx`
-  (타선 full/traveled 폴리라인)
+- **마지막으로 건드린 파일**: `README.md` / `CLAUDE.md` / `docs/SPEC.md`(문서 정리)
 
 ### 타선 꼬리선(전체/지나온 항적) — 완료
 
@@ -23,12 +23,12 @@
 - `interpolate.ts`: `TargetState`에 `index` 추가(자선의 `TrackState.index`와 같은 용도 — 꼬리선을
   어디까지 그릴지 판단)
 - `MapView.tsx`: 타선마다 `{ marker, full, traveled }` 세 개를 한 세트로 관리(기존엔 마커만).
-  자선과 같은 시각 언어(호박색, 옅은 전체경로 → 진한 지나온경로) 대신 자선보다 얇게(`weight: 1`/`1.8`
+  자선과 같은 시각 언어(옅은 전체경로 → 진한 지나온경로)를 쓰되 색은 파란색으로, 선은 자선보다 얇게(`weight: 1`/`1.8`
   vs 자선 `1.5`/`2.5`) 그려서 위계 유지. "전체 항적 미리보기" 토글도 타선에 같이 적용
   - **주의**: 토글 값을 프레임 구독 콜백 안에서 읽어야 해서(마커 쪽과 같은 이유로 리렌더 회피) `showFullTrackRef`로
     최신값을 유지. 새 타선이 재생 중간에 처음 나타날 때도 이 ref로 현재 토글 상태를 반영해 생성
 - 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 mock 근접상황 구간 확대 →
-  자선 항적을 가로지르는 호박색 타선 궤적 확인, 토글 끄면 타선의 옅은 전체경로도 같이 사라지고
+  자선 항적을 가로지르는 파란색 타선 궤적 확인, 토글 끄면 타선의 옅은 전체경로도 같이 사라지고
   지나온 부분(진한 선)은 남는 것까지 확인
 
 ### 다중 선박(traffic_N) 지원 — 완료
@@ -60,7 +60,7 @@ ID 컬럼으로 여러 척이 한 파일에 섞여 있는 구조. 자선(`TrackP
   가로질러 지나가게(등장→근접→퇴장) 만든 mock. "예시 항적" 버튼 누르면 자동으로 같이 뜸
 - 지도 배지: 우상단에 "타선 N척 로드됨" 표시(전체 로드 수, 현재 화면에 보이는 수 아님 — 프레임마다
   안 바뀌어야 리렌더가 안 도므로 일부러 필터링 안 함)
-- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 (1) mock 항적 → 근접상황 구간에서만 호박색
+- 검증: `tsc -b`/`eslint .`/`npm run build` 통과. 브라우저에서 (1) mock 항적 → 근접상황 구간에서만 파란색
   타선 마커 등장, 구간 밖에서는 사라짐, 호버 시 "DEMO TARGET" 툴팁 확인. (2) 문서의 실제 traffic 컬럼명
   (`ID`, `ShipName`, `Latitude[deg]`, `Yaw[deg]`, `TugEnable` 등)으로 만든 2척(어선/예인선) 샘플 CSV를
   자선 CSV와 함께 업로드 → "타선 2척 로드됨" + 지도에 두 마커가 각자 방향으로 정확히 뜨는 것 확인
@@ -125,13 +125,30 @@ ID 컬럼으로 여러 척이 한 파일에 섞여 있는 구조. 자선(`TrackP
     - 실제 데이터 파일은 아직 없음. 분석가가 `str 데이터 분석.xlsx`(컬럼 사전)만 줬고,
       이걸로 매핑/필드를 선반영함(위 "STR 데이터셋 대응" 참고). **실제 CSV가 오면 컬럼명이
       문서와 정확히 일치하는지 재확인 필요** → 다르면 CLAUDE.md 데이터 모델 + SPEC.md 갱신
-    - **git remote 없음** → push 불가. 집/회사 동기화가 아직 안 됨. 주소 확정 후 연결 필요
     - **인코딩**: 현재 UTF-8로만 읽음. 분석가가 EUC-KR CSV를 주면 한글 헤더(위도/경도)가
       깨져서 매핑 실패함. 실제 데이터 받고 나서 필요하면 대응
 
 ---
 
 ## 로그
+
+### 2026-08-05 — PR #1 dev 머지 + 브랜치/문서 정리
+- PR #1(`feat/str-dataset-fields` → `dev`) 머지 완료(`78f5fd9`).
+  머지된 작업 브랜치 2개(`feat/str-dataset-fields`, `feat/khoa-haeareum-map`) 로컬·원격 삭제
+- 문서를 코드와 대조해 정리. 실제로 틀렸던 것들:
+    - `README.md`: 존재하지 않는 `선박항적뷰어-사용법.docx` 링크(깨짐) 삭제.
+      프로젝트 구조 트리에 신규 5개 파일 누락(`TrafficLoader`/`trafficMapping`/`parseTraffic`/`mockTargets`) 반영.
+      TrackPoint 스니펫이 STR 확장 필드 이전 버전이었음 → 갱신 + `TargetShip` 추가
+    - `CLAUDE.md`: 스택의 지도 항목이 "Leaflet + OpenSeaMap"에 머물러 있었음 → KHOA 전자해도 반영.
+      "향후 확장"에 남아 있던 **"KHOA 전자해도로 교체"는 이미 완료된 일이라 삭제**.
+      저장소 루트가 "한 단계 중첩(`autonomous-nav-demo/autonomous-nav-demo/`)"이라고 적혀 있었으나 실제로는 아님 → 정정.
+      브랜치 규칙(PR은 dev로, 머지된 feat는 삭제) 추가
+    - `docs/SPEC.md`: 지도 섹션에 KHOA/폴백 반영. STR·타선 대응 내용이 아예 없어서 섹션 2개 추가.
+      구현 순서 1~7 완료 표시
+    - `docs/PROGRESS.md`: "dev 미머지"·"git remote 없음"이 사실과 달라 정정.
+      타선 색을 아직 호박색으로 적어둔 곳들(`b875400`/`b3ed6a7`에서 파란색으로 바뀜) 수정
+- **KHOA 확인 결과**: 쓰고 있음. 단 이 컴퓨터엔 `.env.local`이 없어 로컬은 CARTO+OpenSeaMap 폴백으로 뜸.
+  전자해도로 보려면 키를 `.env.local`에 넣어야 함
 
 ### 2026-07-22 — KHOA 전자해도 배경 연동 (feat/khoa-haeareum-map)
 - 방향: 무료·프론트엔드 유지하며 개방海로 최대한(배경 전자해도 + 향후 오버레이). 실시간 AIS·공식 항해용 ENC는 제외

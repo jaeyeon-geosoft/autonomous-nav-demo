@@ -6,9 +6,11 @@
 - 백엔드 없음 · 실시간 스트리밍 없음 — 파일을 로드해서 재생하는 방식
 - 지도 위 선박 이동 애니메이션 + 위경도/속도/침로 등 부가 정보 표시
 - 데이터 품질 자동 검증(위치 점프·시각 이상·범위 벗어남·결측치)
+- STR 시뮬레이션 데이터셋 컬럼 자동 인식 + 위험도/회피/사고 이벤트 표시
+- 자선과 별개로 타선/예인선(`traffic_N`) 다중 선박 동시 재생
 
-> 최종 사용자(데이터 분석가)용 사용법은 [`선박항적뷰어-사용법.docx`](선박항적뷰어-사용법.docx) 참고.
 > 이 README는 **개발자**를 위한 문서입니다.
+> 최종 사용자(데이터 분석가)용 사용법은 사내 배포용 docx로 별도 관리합니다.
 
 ## 기술 스택
 
@@ -39,18 +41,22 @@ src/
 ├─ App.tsx                 # 화면 조립 + 파일/mock 로드 진입점
 ├─ format.ts               # 표시용 숫자/시각 포맷
 ├─ components/
-│  ├─ FileLoader.tsx       # CSV 드래그앤드롭 / 파일 선택
-│  ├─ MapView.tsx          # Leaflet 지도, 마커 이동/회전, 항적 polyline
-│  ├─ StatusPanel.tsx      # 현재 시각의 위경도/속도/침로 패널
-│  ├─ IssueList.tsx        # 데이터 품질 이슈 목록(클릭 시 해당 시각으로 이동)
+│  ├─ FileLoader.tsx       # 자선 CSV 드래그앤드롭 / 파일 선택
+│  ├─ TrafficLoader.tsx    # 타선/예인선 CSV 별도 로드 버튼
+│  ├─ MapView.tsx          # Leaflet 지도, 자선·타선 마커 이동/회전, 항적 polyline
+│  ├─ StatusPanel.tsx      # 현재 시각의 위경도/속도/침로 + 위험도·외란·타/엔진 패널
+│  ├─ IssueList.tsx        # 품질 이슈 + 회피/사고 이벤트 목록(클릭 시 해당 시각으로 이동)
 │  ├─ SpeedRibbon.tsx      # 속력 프로파일 리본
 │  └─ TransportBar.tsx     # 재생/정지·배속·타임라인
 ├─ data/                   # ── 데이터 레이어 (화면과 분리) ──
-│  ├─ types.ts             # 표준 내부 모델 TrackPoint
+│  ├─ types.ts             # 표준 내부 모델 TrackPoint(자선) / TargetShip(타선)
 │  ├─ mapping.ts           # 원본 컬럼 → TrackPoint 매핑(별칭 테이블)
-│  ├─ parseCsv.ts          # papaparse 래퍼
-│  ├─ mockTrack.ts         # 가짜 항적 생성 generateMockTrack()
-│  ├─ interpolate.ts       # 커서 시각의 선박 상태 보간
+│  ├─ trafficMapping.ts    # 원본 컬럼 → TargetShip 매핑(ID로 선박별 그룹핑)
+│  ├─ parseCsv.ts          # papaparse 래퍼(자선)
+│  ├─ parseTraffic.ts      # papaparse 래퍼(타선)
+│  ├─ mockTrack.ts         # 가짜 자선 항적 generateMockTrack()
+│  ├─ mockTargets.ts       # 가짜 타선 항적 generateMockTargets()
+│  ├─ interpolate.ts       # 커서 시각의 선박 상태 보간(자선/타선)
 │  └─ quality.ts           # 항적 품질 검증 findIssues()
 └─ playback/               # ── 재생 엔진 (화면과 분리) ──
    ├─ playbackStore.ts     # zustand 스토어(커서·배속·재생상태)
@@ -75,6 +81,8 @@ src/
 
 ### 표준 데이터 모델
 
+**자선** — `TrackPoint` (전체 정의는 `src/data/types.ts`)
+
 ```typescript
 interface TrackPoint {
   timestamp: number;   // 유닉스 ms로 통일 (파싱 시 변환)
@@ -85,25 +93,42 @@ interface TrackPoint {
   hdg?: number;        // 선수방위 deg
   rot?: number;        // 선회율
   status?: string;     // 운항 상태
+
+  // STR 데이터셋 대응으로 추가된 선택 필드
+  risk?, avoidFlag?, accident?                    // 자율/안전
+  windSpeed?, windDir?, waveHeight?, waveDir?, …  // 해상 외란
+  rudderCmd?, rudderActual?, engineCmd?, …        // 제어(명령 vs 실제)
 }
 ```
 
+**타선/예인선** — `TargetShip` = `{ id, name?, shipType?, length?, beam?, points: TargetPoint[] }`
+
+`TrackPoint`를 재사용하지 않고 별도 타입으로 뒀습니다. `TrackPoint`는 "자선 표준 모델"이라는
+계약이라, 타선 전용 필드(`tugEnable` 등)를 얹으면 그 계약이 흐려집니다.
+
 - timestamp는 내부에서 **항상 유닉스 ms** (표시할 때만 포맷)
-- 각도(hdg/cog)는 **0~360 정규화**
+- 각도(hdg/cog/yaw)는 **0~360 정규화**
 - ISO 문자열 / 유닉스 초 / 유닉스 ms 시각을 모두 자동 판별
+- 커서가 데이터 구간 밖일 때 — 자선은 **클램프**(계속 표시), 타선은 **null**(화면에서 사라짐).
+  타선은 시나리오 중간에 등장/퇴장하는 게 정상이기 때문입니다.
 
 ## 지도 배경 (KHOA 전자해도)
 
-`.env.local`에 KHOA 개방海(해아름) 인증키를 넣으면 전자해도 배경을 씁니다.
-키가 없으면 CARTO + OpenSeaMap으로 자동 폴백합니다.
+`.env.local`에 KHOA 개방海(해아름) 인증키를 넣으면 전자해도(`BASEMAP_ENC573857`, 3857 WMS)
+배경을 씁니다. **키가 없으면 CARTO + OpenSeaMap으로 자동 폴백**하므로, 키 없이도 개발은 됩니다.
 
 ```
 # .env.local (git 추적 제외)
 VITE_KHOA_KEY=발급받은_ServiceKey
 ```
 
-전자해도는 한국 근해만 커버하므로, `MapView.tsx`에서 최소/최대 줌을 제한하고
-위경도 범위 밖 이상치는 지도 범위 계산에서 제외합니다.
+키 발급 방법은 [`.env.example`](.env.example)에 적어뒀습니다.
+
+- 전자해도에는 항로표지가 이미 들어 있어, KHOA 배경일 때는 OpenSeaMap 오버레이를 얹지 않습니다.
+- KHOA WMS는 파라미터를 **대문자로만** 받습니다(Leaflet 기본은 소문자). `uppercase: true` +
+  `ServiceKey`는 base URL에 직접 붙여야 합니다 — 안 그러면 빈 화면/503이 납니다.
+- 전자해도는 한국 근해만 커버하므로, `MapView.tsx`에서 최소/최대 줌을 제한하고
+  위경도 범위 밖 이상치는 지도 범위 계산에서 제외합니다.
 
 ## 문서
 
