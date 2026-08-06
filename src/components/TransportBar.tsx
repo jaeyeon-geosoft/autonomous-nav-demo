@@ -4,7 +4,7 @@ import {
   selectEndTime,
   SPEEDS,
 } from '../playback/playbackStore';
-import { formatClock, formatDuration } from '../format';
+import { formatDuration } from '../format';
 import { SpeedRibbon } from './SpeedRibbon';
 
 export function TransportBar() {
@@ -19,6 +19,8 @@ export function TransportBar() {
 
   const span = endTime - startTime;
   const elapsed = cursor - startTime;
+  // elapsed/total에 같은 자릿수 형식을 써야 재생 중 폭이 안 바뀐다.
+  const includeHours = span >= 3600_000;
 
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-3">
@@ -59,8 +61,8 @@ export function TransportBar() {
       <SpeedRibbon />
 
       <span className="font-mono text-xs text-dim tabular-nums">
-        <span className="text-ink">{formatClock(cursor)}</span> · {formatDuration(elapsed)} /{' '}
-        {formatDuration(span)}
+        <span className="text-ink">{formatDuration(elapsed, includeHours)}</span> /{' '}
+        {formatDuration(span, includeHours)}
       </span>
     </div>
   );
