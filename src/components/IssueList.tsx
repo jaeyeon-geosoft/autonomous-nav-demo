@@ -1,5 +1,5 @@
 import { usePlaybackStore } from '../playback/playbackStore';
-import { countByKind, type IssueKind } from '../data/quality';
+import { countByKind, type Issue, type IssueKind } from '../data/quality';
 import { formatClock } from '../format';
 
 const KIND_LABEL: Record<IssueKind, string> = {
@@ -12,6 +12,44 @@ const KIND_LABEL: Record<IssueKind, string> = {
 };
 
 const KIND_ORDER: IssueKind[] = ['accident', 'avoid', 'jump', 'time', 'range', 'missing'];
+
+interface IssueGroup {
+  kind: IssueKind;
+  start: Issue;
+  end: Issue;
+  count: number;
+}
+
+/**
+ * 같은 종류의 이슈가 연속된 포인트에 걸쳐 있으면 하나의 구간으로 묶는다.
+ * 예: 근접상황 26개 포인트에 걸린 AvoidFlag를 목록 한 줄로("09:12:10~09:16:20 · 26건").
+ * 종류별로 먼저 묶은 뒤 시간순으로 정렬해 원래 표시 순서를 유지한다.
+ */
+function groupIssues(issues: Issue[]): IssueGroup[] {
+  const byKind = new Map<IssueKind, Issue[]>();
+  for (const issue of issues) {
+    const list = byKind.get(issue.kind);
+    if (list) list.push(issue);
+    else byKind.set(issue.kind, [issue]);
+  }
+
+  const groups: IssueGroup[] = [];
+  for (const list of byKind.values()) {
+    let current: IssueGroup | null = null;
+    for (const issue of list) {
+      if (current && issue.index - current.end.index <= 1) {
+        current.end = issue;
+        current.count += 1;
+      } else {
+        current = { kind: issue.kind, start: issue, end: issue, count: 1 };
+        groups.push(current);
+      }
+    }
+  }
+
+  groups.sort((a, b) => a.start.timestamp - b.start.timestamp);
+  return groups;
+}
 
 export function IssueList() {
   const points = usePlaybackStore((state) => state.points);
@@ -32,6 +70,7 @@ export function IssueList() {
   }
 
   const counts = countByKind(issues);
+  const groups = groupIssues(issues);
 
   return (
     <div className="border-t border-hairline p-5">
@@ -49,23 +88,30 @@ export function IssueList() {
       </div>
 
       <ul className="mt-3 flex flex-col gap-1">
-        {issues.map((issue, i) => {
-          const active = Math.abs(cursor - issue.timestamp) < 1;
+        {groups.map((group, i) => {
+          const active = cursor >= group.start.timestamp - 1 && cursor <= group.end.timestamp + 1;
+          const timeLabel =
+            group.count > 1
+              ? `${formatClock(group.start.timestamp)}~${formatClock(group.end.timestamp)}`
+              : formatClock(group.start.timestamp);
+          const message =
+            group.count > 1 ? `${KIND_LABEL[group.kind]} 지속 · ${group.count}건` : group.start.message;
+
           return (
             <li key={i}>
               <button
                 type="button"
-                onClick={() => seek(issue.timestamp)}
+                onClick={() => seek(group.start.timestamp)}
                 className={`flex w-full items-baseline gap-2 rounded border-l-2 py-1.5 pr-2 pl-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-alert ${
                   active
                     ? 'border-alert bg-alert/10'
                     : 'border-alert/50 hover:bg-alert/10'
                 }`}
               >
-                <span className="font-mono text-xs text-dim tabular-nums">
-                  {formatClock(issue.timestamp)}
+                <span className="font-mono text-xs text-dim tabular-nums whitespace-nowrap">
+                  {timeLabel}
                 </span>
-                <span className="text-xs text-ink">{issue.message}</span>
+                <span className="text-xs text-ink">{message}</span>
               </button>
             </li>
           );
