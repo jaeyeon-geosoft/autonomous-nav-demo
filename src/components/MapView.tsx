@@ -270,7 +270,8 @@ export function MapView() {
             interactive: true,
             keyboard: false,
           }).addTo(layer);
-          if (ship.name) marker.bindTooltip(ship.name, { direction: 'top', offset: [0, -10] });
+          // 이름이 없는 데이터셋도 있어서(선택 필드), 없으면 id로라도 어떤 배인지 구분되게 한다.
+          marker.bindTooltip(ship.name ?? ship.id, { direction: 'top', offset: [0, -10] });
           entry = { marker, full, traveled };
           entries.set(ship.id, entry);
         }
