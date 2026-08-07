@@ -98,15 +98,31 @@ function App() {
       </header>
 
       {error && (
-        <p className="border-b border-alert/40 bg-alert/10 px-5 py-2 text-sm text-alert">
-          {error}
-        </p>
+        <div className="flex items-center justify-between gap-3 border-b border-alert/40 bg-alert/10 px-5 py-2 text-sm text-alert">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label="에러 메시지 닫기"
+            className="shrink-0 rounded px-1 text-alert/70 hover:text-alert focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-alert"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       {trafficError && (
-        <p className="border-b border-alert/40 bg-alert/10 px-5 py-2 text-sm text-alert">
-          타선 데이터: {trafficError}
-        </p>
+        <div className="flex items-center justify-between gap-3 border-b border-alert/40 bg-alert/10 px-5 py-2 text-sm text-alert">
+          <p>타선 데이터: {trafficError}</p>
+          <button
+            type="button"
+            onClick={() => setTrafficError(null)}
+            aria-label="에러 메시지 닫기"
+            className="shrink-0 rounded px-1 text-alert/70 hover:text-alert focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-alert"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
