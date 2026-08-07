@@ -18,6 +18,9 @@ function App() {
   const [source, setSource] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [trafficError, setTrafficError] = useState<string | null>(null);
+  // 큰 CSV는 읽는 데 시간이 걸릴 수 있어서, 그동안 버튼을 막고 로딩 중임을 알린다.
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trafficLoading, setTrafficLoading] = useState(false);
 
   const setPoints = usePlaybackStore((state) => state.setPoints);
   const setTargets = usePlaybackStore((state) => state.setTargets);
@@ -37,12 +40,15 @@ function App() {
 
   const handleFile = async (file: File) => {
     setError(null);
+    setTrackLoading(true);
     try {
       load(await parseCsv(file), file.name);
     } catch (cause) {
       setResult(null);
       setPoints([]);
       setError(cause instanceof Error ? cause.message : '파일을 읽지 못했습니다.');
+    } finally {
+      setTrackLoading(false);
     }
   };
 
@@ -66,6 +72,7 @@ function App() {
 
   const handleTrafficFile = async (file: File) => {
     setTrafficError(null);
+    setTrafficLoading(true);
     try {
       const parsed = await parseTrafficCsv(file);
       if (parsed.missingRequired.length > 0 || parsed.ships.length === 0) {
@@ -75,6 +82,8 @@ function App() {
       setTargets(parsed.ships);
     } catch (cause) {
       setTrafficError(cause instanceof Error ? cause.message : '타선 파일을 읽지 못했습니다.');
+    } finally {
+      setTrafficLoading(false);
     }
   };
 
@@ -91,8 +100,8 @@ function App() {
         )}
         {loaded && (
           <div className="ml-auto flex items-center gap-2">
-            <TrafficLoader onFile={handleTrafficFile} />
-            <FileLoader onFile={handleFile} onMock={handleMock} compact />
+            <TrafficLoader onFile={handleTrafficFile} loading={trafficLoading} />
+            <FileLoader onFile={handleFile} onMock={handleMock} compact loading={trackLoading} />
           </div>
         )}
       </header>
@@ -132,7 +141,7 @@ function App() {
           {!loaded && (
             <div className="absolute inset-0 z-[500] flex items-center justify-center bg-abyss/85 p-6">
               <div className="w-full max-w-md">
-                <FileLoader onFile={handleFile} onMock={handleMock} />
+                <FileLoader onFile={handleFile} onMock={handleMock} loading={trackLoading} />
               </div>
             </div>
           )}
