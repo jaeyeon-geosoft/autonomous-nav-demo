@@ -4,6 +4,7 @@ import { TrafficLoader } from './components/TrafficLoader';
 import { MapView } from './components/MapView';
 import { StatusPanel } from './components/StatusPanel';
 import { IssueList } from './components/IssueList';
+import { TargetList } from './components/TargetList';
 import { TransportBar } from './components/TransportBar';
 import { parseCsv, summarizeParse, type CsvParseResult } from './data/parseCsv';
 import { parseTrafficCsv, summarizeTrafficParse } from './data/parseTraffic';
@@ -124,6 +125,7 @@ function App() {
         <aside className="w-full shrink-0 overflow-y-auto border-t border-hairline bg-deep lg:w-80 lg:border-t-0 lg:border-l">
           <StatusPanel />
           <IssueList />
+          <TargetList />
         </aside>
       </div>
 
