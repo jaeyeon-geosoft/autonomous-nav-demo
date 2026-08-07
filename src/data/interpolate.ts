@@ -1,4 +1,4 @@
-import type { TrackPoint } from './types';
+import type { TrackPoint, TargetPoint } from './types';
 import { normalizeAngle } from './mapping';
 
 /** 재생 커서 시각에서의 선박 상태. 화면은 이것만 구독해서 그린다. */
@@ -15,6 +15,22 @@ export interface TrackState {
   index: number;
   /** 전체 구간 중 진행률 0~1 */
   progress: number;
+
+  risk?: number;
+  avoidFlag?: boolean;
+  accident?: boolean;
+
+  windSpeed?: number;
+  windDir?: number;
+  waveHeight?: number;
+  waveDir?: number;
+  currentSpeed?: number;
+  currentDir?: number;
+
+  rudderCmd?: number;
+  rudderActual?: number;
+  engineCmd?: number;
+  engineActual?: number;
 }
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -113,5 +129,99 @@ export function interpolateAt(points: TrackPoint[], timestamp: number): TrackSta
 
   state.heading = state.hdg ?? state.cog ?? bearing(from, to);
 
+  if (from.risk !== undefined) {
+    state.risk = to.risk !== undefined ? lerp(from.risk, to.risk, ratio) : from.risk;
+  }
+  // 플래그는 보간하지 않는다 — 구간 시작 포인트의 값을 그대로 쓴다.
+  state.avoidFlag = from.avoidFlag;
+  state.accident = from.accident;
+
+  if (from.windSpeed !== undefined) {
+    state.windSpeed = to.windSpeed !== undefined ? lerp(from.windSpeed, to.windSpeed, ratio) : from.windSpeed;
+  }
+  if (from.windDir !== undefined) {
+    state.windDir = to.windDir !== undefined ? lerpAngle(from.windDir, to.windDir, ratio) : from.windDir;
+  }
+  if (from.waveHeight !== undefined) {
+    state.waveHeight = to.waveHeight !== undefined ? lerp(from.waveHeight, to.waveHeight, ratio) : from.waveHeight;
+  }
+  if (from.waveDir !== undefined) {
+    state.waveDir = to.waveDir !== undefined ? lerpAngle(from.waveDir, to.waveDir, ratio) : from.waveDir;
+  }
+  if (from.currentSpeed !== undefined) {
+    state.currentSpeed =
+      to.currentSpeed !== undefined ? lerp(from.currentSpeed, to.currentSpeed, ratio) : from.currentSpeed;
+  }
+  if (from.currentDir !== undefined) {
+    state.currentDir =
+      to.currentDir !== undefined ? lerpAngle(from.currentDir, to.currentDir, ratio) : from.currentDir;
+  }
+  if (from.rudderCmd !== undefined) {
+    state.rudderCmd = to.rudderCmd !== undefined ? lerp(from.rudderCmd, to.rudderCmd, ratio) : from.rudderCmd;
+  }
+  if (from.rudderActual !== undefined) {
+    state.rudderActual =
+      to.rudderActual !== undefined ? lerp(from.rudderActual, to.rudderActual, ratio) : from.rudderActual;
+  }
+  if (from.engineCmd !== undefined) {
+    state.engineCmd = to.engineCmd !== undefined ? lerp(from.engineCmd, to.engineCmd, ratio) : from.engineCmd;
+  }
+  if (from.engineActual !== undefined) {
+    state.engineActual =
+      to.engineActual !== undefined ? lerp(from.engineActual, to.engineActual, ratio) : from.engineActual;
+  }
+
   return state;
+}
+
+/** 재생 커서 시각에서의 타선/예인선 상태. */
+export interface TargetState {
+  lat: number;
+  lon: number;
+  heading: number;
+  tugEnable?: boolean;
+  /** 커서가 속한 구간의 시작 포인트 인덱스. 꼬리선(지나온 항적) 그리는 데 씀. */
+  index: number;
+}
+
+/**
+ * 타선(TargetShip) 상태 보간. 자선의 interpolateAt과 달리 클램프하지 않는다 —
+ * 커서가 이 선박의 데이터 구간 밖이면 null을 반환해 화면에서 사라지게 한다
+ * (시나리오 중간에 등장/퇴장하는 선박을 표현하기 위함).
+ */
+export function interpolateTargetAt(points: TargetPoint[], timestamp: number): TargetState | null {
+  if (points.length === 0) return null;
+
+  const start = points[0].timestamp;
+  const end = points[points.length - 1].timestamp;
+  if (timestamp < start || timestamp > end) return null;
+
+  const index = findSegment(points, timestamp);
+  const from = points[index];
+  const to = points[index + 1];
+
+  if (!to) {
+    const previous = points[index - 1];
+    return {
+      lat: from.lat,
+      lon: from.lon,
+      heading: from.yaw ?? (previous ? bearing(previous, from) : 0),
+      tugEnable: from.tugEnable,
+      index,
+    };
+  }
+
+  const segmentSpan = to.timestamp - from.timestamp;
+  const ratio = segmentSpan > 0 ? (timestamp - from.timestamp) / segmentSpan : 0;
+
+  return {
+    lat: lerp(from.lat, to.lat, ratio),
+    lon: lerp(from.lon, to.lon, ratio),
+    heading:
+      from.yaw !== undefined
+        ? lerpAngle(from.yaw, to.yaw ?? from.yaw, ratio)
+        : bearing(from, to),
+    tugEnable: from.tugEnable,
+    index,
+  };
 }

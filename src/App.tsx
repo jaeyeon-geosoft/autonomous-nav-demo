@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { FileLoader } from './components/FileLoader';
+import { TrafficLoader } from './components/TrafficLoader';
 import { MapView } from './components/MapView';
 import { StatusPanel } from './components/StatusPanel';
 import { IssueList } from './components/IssueList';
+import { TargetList } from './components/TargetList';
 import { TransportBar } from './components/TransportBar';
 import { parseCsv, summarizeParse, type CsvParseResult } from './data/parseCsv';
+import { parseTrafficCsv, summarizeTrafficParse } from './data/parseTraffic';
 import { generateMockTrack } from './data/mockTrack';
+import { generateMockTargets } from './data/mockTargets';
 import { usePlaybackStore } from './playback/playbackStore';
 import { usePlaybackClock } from './playback/usePlaybackClock';
 
@@ -13,8 +17,13 @@ function App() {
   const [result, setResult] = useState<CsvParseResult | null>(null);
   const [source, setSource] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [trafficError, setTrafficError] = useState<string | null>(null);
+  // 큰 CSV는 읽는 데 시간이 걸릴 수 있어서, 그동안 버튼을 막고 로딩 중임을 알린다.
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trafficLoading, setTrafficLoading] = useState(false);
 
   const setPoints = usePlaybackStore((state) => state.setPoints);
+  const setTargets = usePlaybackStore((state) => state.setTargets);
   const points = usePlaybackStore((state) => state.points);
 
   usePlaybackClock();
@@ -24,16 +33,22 @@ function App() {
     setSource(label);
     setPoints(parsed.points);
     setError(parsed.missingRequired.length > 0 ? summarizeParse(parsed) : null);
+    // 자선 항적이 바뀌면 이전 시나리오의 타선 데이터는 더 이상 맞지 않는다.
+    setTargets([]);
+    setTrafficError(null);
   };
 
   const handleFile = async (file: File) => {
     setError(null);
+    setTrackLoading(true);
     try {
       load(await parseCsv(file), file.name);
     } catch (cause) {
       setResult(null);
       setPoints([]);
       setError(cause instanceof Error ? cause.message : '파일을 읽지 못했습니다.');
+    } finally {
+      setTrackLoading(false);
     }
   };
 
@@ -51,6 +66,25 @@ function App() {
       },
       '예시 항적',
     );
+    // 예시 항적은 다중 선박 표시도 바로 확인할 수 있게 타선 mock을 같이 넣는다.
+    setTargets(generateMockTargets(mock));
+  };
+
+  const handleTrafficFile = async (file: File) => {
+    setTrafficError(null);
+    setTrafficLoading(true);
+    try {
+      const parsed = await parseTrafficCsv(file);
+      if (parsed.missingRequired.length > 0 || parsed.ships.length === 0) {
+        setTrafficError(summarizeTrafficParse(parsed));
+        return;
+      }
+      setTargets(parsed.ships);
+    } catch (cause) {
+      setTrafficError(cause instanceof Error ? cause.message : '타선 파일을 읽지 못했습니다.');
+    } finally {
+      setTrafficLoading(false);
+    }
   };
 
   const loaded = points.length > 0;
@@ -65,16 +99,39 @@ function App() {
           </p>
         )}
         {loaded && (
-          <div className="ml-auto">
-            <FileLoader onFile={handleFile} onMock={handleMock} compact />
+          <div className="ml-auto flex items-center gap-2">
+            <TrafficLoader onFile={handleTrafficFile} loading={trafficLoading} />
+            <FileLoader onFile={handleFile} onMock={handleMock} compact loading={trackLoading} />
           </div>
         )}
       </header>
 
       {error && (
-        <p className="border-b border-alert/40 bg-alert/10 px-5 py-2 text-sm text-alert">
-          {error}
-        </p>
+        <div className="flex items-center justify-between gap-3 border-b border-alert/40 bg-alert/10 px-5 py-2 text-sm text-alert">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            aria-label="에러 메시지 닫기"
+            className="shrink-0 rounded px-1 text-alert/70 hover:text-alert focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-alert"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {trafficError && (
+        <div className="flex items-center justify-between gap-3 border-b border-alert/40 bg-alert/10 px-5 py-2 text-sm text-alert">
+          <p>타선 데이터: {trafficError}</p>
+          <button
+            type="button"
+            onClick={() => setTrafficError(null)}
+            aria-label="에러 메시지 닫기"
+            className="shrink-0 rounded px-1 text-alert/70 hover:text-alert focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-alert"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -84,7 +141,7 @@ function App() {
           {!loaded && (
             <div className="absolute inset-0 z-[500] flex items-center justify-center bg-abyss/85 p-6">
               <div className="w-full max-w-md">
-                <FileLoader onFile={handleFile} onMock={handleMock} />
+                <FileLoader onFile={handleFile} onMock={handleMock} loading={trackLoading} />
               </div>
             </div>
           )}
@@ -93,6 +150,7 @@ function App() {
         <aside className="w-full shrink-0 overflow-y-auto border-t border-hairline bg-deep lg:w-80 lg:border-t-0 lg:border-l">
           <StatusPanel />
           <IssueList />
+          <TargetList />
         </aside>
       </div>
 

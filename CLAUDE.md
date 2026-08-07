@@ -12,23 +12,25 @@
 - 백엔드 없음. 실시간 스트리밍 없음.
 - 파일(주로 CSV)을 로드해서 시간순으로 재생하는 방식.
 - 현 단계 핵심: 지도 위 선박 이동 애니메이션 + 위경도/속도 등 부가 정보 표시.
-- 데이터 형식은 아직 미확정 — 흔한 항적 데이터 구조를 가정해 유연하게 만들고,
-  실제 데이터가 오면 컬럼 매핑만 맞춥니다.
+- 데이터 형식은 STR 시뮬레이터 컬럼 사전 기준으로 1차 대응 완료. 실 데이터가 오면
+  매핑 테이블(`mapping.ts` / `trafficMapping.ts`)만 맞춥니다.
 
 ## 기술 스택
 
 - React + TypeScript + Vite
 - 상태관리: Zustand
 - 스타일: Tailwind CSS
-- 지도: Leaflet + OpenSeaMap seamark 타일 오버레이
+- 지도: Leaflet + KHOA 개방海 전자해도 WMS(키 있을 때) / CARTO + OpenSeaMap seamark(폴백)
 - CSV 파싱: papaparse
 
 ## 핵심 데이터 모델
 
 모든 데이터는 아래 표준 내부 모델로 통일합니다. 화면 코드는 이 모델만 알고,
-원본 데이터의 컬럼명은 매핑 레이어에서 격리합니다.
+원본 데이터의 컬럼명은 매핑 레이어에서 격리합니다. **정본은 `src/data/types.ts`** —
+필드를 늘릴 때는 그쪽을 고치고, 여기는 요약만 유지합니다.
 
 ```typescript
+// 자선
 interface TrackPoint {
   timestamp: number;   // 유닉스 ms로 통일 (파싱 시 변환)
   lat: number;         // 위도 decimal degrees
@@ -38,8 +40,20 @@ interface TrackPoint {
   hdg?: number;        // 선수방위 deg (Heading)
   rot?: number;        // 선회율 (Rate of Turn)
   status?: string;     // 운항 상태 (auto/manual 등)
+
+  // STR 데이터셋 대응 — 자율/안전, 해상 외란, 제어(명령 vs 실제)
+  risk?, avoidFlag?, accident?
+  windSpeed?, windDir?, waveHeight?, waveDir?, currentSpeed?, currentDir?
+  rudderCmd?, rudderActual?, engineCmd?, engineActual?
 }
+
+// 타선/예인선 (traffic_N) — 자선과 별도 타입
+interface TargetShip { id, name?, shipType?, length?, beam?, points: TargetPoint[] }
+interface TargetPoint { timestamp, lat, lon, yaw?, turningRate?, tugEnable? }
 ```
+
+`TrackPoint`는 **자선 표준 모델**이라는 계약이다. 타선 전용 필드를 여기 얹지 말고
+`TargetShip` 쪽에 둔다.
 
 ## 아키텍처 원칙
 
@@ -87,17 +101,21 @@ interface TrackPoint {
 
 ## 파일 위치
 
-이 저장소의 루트는 `autonomous-nav-demo/autonomous-nav-demo/`이다(한 단계 중첩).
-모든 경로는 이 루트 기준.
+모든 경로는 저장소 루트 기준.
 
 - `CLAUDE.md` — 상시 맥락(이 파일)
+- `README.md` — 개발자용 문서(구조·아키텍처·지도 배경 설정)
 - `docs/SPEC.md` — 상세 요구사항
 - `docs/PROGRESS.md` — 작업 로그
 - `src/data/` — 데이터 레이어(모델, 컬럼 매핑, mock 생성)
 
+## 브랜치
+
+- `main` ← `dev` ← 작업 브랜치(`feat/*`). PR은 `dev`로 낸다.
+- 머지된 `feat/*` 브랜치는 로컬·원격 모두 지운다.
+
 ## 향후 확장 (지금은 만들지 않음)
 
-- 실선박 연동 시 지도를 KHOA 전자해도로 교체
 - 센서 상태 패널(GPS/AIS/RADAR/LiDAR/IMU)
 - 실시간 데이터 소스 어댑터
 
